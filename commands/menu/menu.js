@@ -12,7 +12,7 @@ module.exports = {
 
       const commandsDir = path.join(__dirname, "..");
 
-      // 🔹 Leer todos los comandos
+      // 🔹 Obtener todos los archivos de comandos
       const getCommandFiles = dir => {
         let files = [];
         for (const file of fs.readdirSync(dir)) {
@@ -28,7 +28,7 @@ module.exports = {
 
       const commandFiles = getCommandFiles(commandsDir);
 
-      // 🔹 Agrupar por categoría
+      // 🔹 Agrupar comandos por categoría
       const categories = {};
       for (const file of commandFiles) {
         try {
@@ -48,7 +48,7 @@ module.exports = {
         } catch {}
       }
 
-      // 🔹 Construir menú
+      // 🔹 Construir texto del menú
       let menuText = `🐉 *SonGokuBot v1.0* 🐉\n\n`;
 
       for (const cat in categories) {
@@ -61,26 +61,26 @@ module.exports = {
 
       menuText += `✨ *SonGokuBot • Ultra Instinto • DVYER*`;
 
-      // 🔹 BOTONES (SIN PREFIJO)
+      // 🔹 BOTONES (CON PREFIJO, COMO PLAY)
       const buttons = [
         {
-          buttonId: "hosting",
+          buttonId: `${usedPrefix}hosting`,
           buttonText: { displayText: "🤖 TENER BOT / HOSTING" },
           type: 1
         },
         {
-          buttonId: "menu_peliculas",
+          buttonId: `${usedPrefix}menu_peliculas`,
           buttonText: { displayText: "🎬 MENÚ PELÍCULAS" },
           type: 1
         },
         {
-          buttonId: "getbot",
+          buttonId: `${usedPrefix}getbot`,
           buttonText: { displayText: "ℹ️ INFO DEL BOT" },
           type: 1
         }
       ];
 
-      // 🔹 Enviar menú
+      // 🔹 Enviar menú (MISMO FORMATO QUE PLAY)
       await client.sendMessage(
         m.chat,
         {
@@ -88,8 +88,8 @@ module.exports = {
             url: "https://i.ibb.co/Xrxbcymh/IMG-20241011-WA0000.jpg"
           },
           caption: menuText,
-          footer: "🐉 SonGokuBot • Ultra Instinto • DVYER",
           buttons,
+          footer: "🐉 SonGokuBot • Ultra Instinto • DVYER",
           headerType: 4
         },
         { quoted: m }
