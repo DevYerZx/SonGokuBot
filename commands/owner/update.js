@@ -30,7 +30,7 @@ module.exports = {
   command: ["update", "actualizar"],
   description: "Actualiza desde GitHub",
   isOwner: true,
-  category: "owner",
+  categoría: "Dueño",
   run: async (client, m, args, from, isCreator) => {
     const { exec } = require("child_process");
     const baseDir = path.join(__dirname, "..");
