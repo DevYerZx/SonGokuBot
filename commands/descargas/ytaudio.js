@@ -45,24 +45,28 @@ module.exports = {
         global.channelInfo
       );
 
-      // Descargar desde la API de Gawrgura
-      const downloadRes = await axios.get(
+      // Obtener URL de descarga desde la API de Gawrgura
+      const apiRes = await axios.get(
         `https://gawrgura-api.onrender.com/download/ytmp3?url=${encodeURIComponent(videoUrl)}`,
-        { responseType: "arraybuffer", timeout: 180000 }
+        { timeout: 180000 }
       );
 
-      if (!downloadRes.data?.result)
-        return client.reply(m.chat, "❌ Error al obtener el audio.", m);
+      if (!apiRes.data?.status || !apiRes.data?.result)
+        return client.reply(m.chat, "❌ No se pudo obtener el audio.", m);
 
-      // Guardar temporalmente
-      const tempFile = path.join(os.tmpdir(), `${Date.now()}.mp3`);
-      const audioBuffer = await axios.get(downloadRes.data.result, {
+      const audioUrl = apiRes.data.result;
+
+      // Descargar el MP3 como buffer
+      const audioBufferRes = await axios.get(audioUrl, {
         responseType: "arraybuffer",
         timeout: 180000
       });
-      fs.writeFileSync(tempFile, audioBuffer.data);
 
-      // Enviar el audio
+      // Guardar temporalmente
+      const tempFile = path.join(os.tmpdir(), `${Date.now()}.mp3`);
+      fs.writeFileSync(tempFile, audioBufferRes.data);
+
+      // Enviar audio
       await client.sendMessage(
         m.chat,
         {
@@ -81,12 +85,11 @@ module.exports = {
       console.error("YTAUDIO ERROR:", err.response?.data || err.message);
       await client.reply(
         m.chat,
-        "❌ Ocurrió un error al descargar el audio.",
+        "❌ Ocurrió un error al descargar o enviar el audio.",
         m,
         global.channelInfo
       );
     }
   }
 };
-
 
