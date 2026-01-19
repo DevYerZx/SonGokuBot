@@ -12,7 +12,7 @@ module.exports = {
 
       const commandsDir = path.join(__dirname, "..");
 
-      // 🔹 Leer todos los archivos JS en subcarpetas
+      // 🔹 Leer todos los comandos
       const getCommandFiles = dir => {
         let files = [];
         for (const file of fs.readdirSync(dir)) {
@@ -28,24 +28,28 @@ module.exports = {
 
       const commandFiles = getCommandFiles(commandsDir);
 
-      // 🔹 Agrupar comandos válidos por categoría
+      // 🔹 Agrupar por categoría
       const categories = {};
       for (const file of commandFiles) {
         try {
+          delete require.cache[require.resolve(file)];
           const cmd = require(file);
+
           if (!cmd.command || !cmd.categoria || !cmd.description) continue;
 
           const category = cmd.categoria || "Otros";
           const name = Array.isArray(cmd.command) ? cmd.command[0] : cmd.command;
-          const desc = cmd.description;
 
           if (!categories[category]) categories[category] = [];
-          categories[category].push({ name, desc });
+          categories[category].push({
+            name,
+            desc: cmd.description
+          });
         } catch {}
       }
 
-      // 🔹 Construir el menú con estilo compacto
-      let menuText = `🐉 SonGokuBot v1.0 - Menú Completo 🐉\n\n`;
+      // 🔹 Construir menú
+      let menuText = `🐉 *SonGokuBot v1.0* 🐉\n\n`;
 
       for (const cat in categories) {
         menuText += `╭─❑ *${cat.toUpperCase()}* ❑─╮\n`;
@@ -55,20 +59,34 @@ module.exports = {
         menuText += `╰─────────────╯\n\n`;
       }
 
-      menuText += `✨ SonGokuBot • Ultra Instinto • DVYER`;
+      menuText += `✨ *SonGokuBot • Ultra Instinto • DVYER*`;
 
-      // 🔹 Botones principales
+      // 🔹 BOTONES (SIN PREFIJO)
       const buttons = [
-        { buttonId: `${usedPrefix}.hosting`, buttonText: { displayText: "HOSTING/TENER BOT " }, type: 1 },
-        { buttonId: `${usedPrefix}menu_peliculas`, buttonText: { displayText: "...." }, type: 1 },
-        { buttonId: `${usedPrefix}getbot`, buttonText: { displayText: "INFO BOT" }, type: 1 },
+        {
+          buttonId: "hosting",
+          buttonText: { displayText: "🤖 TENER BOT / HOSTING" },
+          type: 1
+        },
+        {
+          buttonId: "menu_peliculas",
+          buttonText: { displayText: "🎬 MENÚ PELÍCULAS" },
+          type: 1
+        },
+        {
+          buttonId: "getbot",
+          buttonText: { displayText: "ℹ️ INFO DEL BOT" },
+          type: 1
+        }
       ];
 
       // 🔹 Enviar menú
       await client.sendMessage(
         m.chat,
         {
-          image: { url: "https://i.ibb.co/Xrxbcymh/IMG-20241011-WA0000.jpg" },
+          image: {
+            url: "https://i.ibb.co/Xrxbcymh/IMG-20241011-WA0000.jpg"
+          },
           caption: menuText,
           footer: "🐉 SonGokuBot • Ultra Instinto • DVYER",
           buttons,
@@ -83,5 +101,3 @@ module.exports = {
     }
   }
 };
-
-
