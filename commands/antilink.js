@@ -1,5 +1,15 @@
 module.exports = async (client, m) => {
+  // 🛑 SOLO GRUPOS
+  if (!m.isGroup) return;
+
+  // 🤖 IGNORAR MENSAJES DEL BOT (ESTA ES LA CLAVE)
+  if (m.fromMe) return;
+
+  // 🔒 ANTILINK DESACTIVADO
   if (!global.db.data.chats[m.chat]?.antilink) return;
+
+  // 🛑 SI NO HAY TEXTO
+  if (!m.text) return;
 
   let linksProhibidos = {
     telegram: /telegram\.me|t\.me/gi,
@@ -17,12 +27,15 @@ module.exports = async (client, m) => {
     return false;
   }
 
+  // ❌ SOLO DETECTAR WHATSAPP Y TELEGRAM (COMO TU ORIGINAL)
   let enlacesDetectados = ["whatsapp", "telegram"];
 
   if (validarLink(m.text, enlacesDetectados)) {
     try {
       let gclink =
-        "https://chat.whatsapp.com/" + (await client.groupInviteCode(m.chat));
+        "https://chat.whatsapp.com/" +
+        (await client.groupInviteCode(m.chat));
+
       let isLinkThisGc = new RegExp(gclink, "i");
       let isGcLink = isLinkThisGc.test(m.text);
 
@@ -34,6 +47,7 @@ module.exports = async (client, m) => {
         );
       }
 
+      // 🗑️ BORRAR MENSAJE
       await client.sendMessage(m.chat, {
         delete: {
           remoteJid: m.chat,
@@ -43,7 +57,8 @@ module.exports = async (client, m) => {
         },
       });
 
-      client.sendMessage(
+      // ⚠️ AVISO
+      await client.sendMessage(
         m.chat,
         {
           text: `Anti Enlaces\n\n@${m.sender.split("@")[0]} mandaste un enlace *prohibido*`,
@@ -52,9 +67,10 @@ module.exports = async (client, m) => {
         { quoted: m },
       );
 
-      client.groupParticipantsUpdate(m.chat, [m.sender], "remove");
-    } catch {
-      console.debug = () => {};
+      // 👢 EXPULSAR USUARIO
+      await client.groupParticipantsUpdate(m.chat, [m.sender], "remove");
+    } catch (e) {
+      console.log("ANTILINK ERROR:", e);
     }
   }
 };
