@@ -10,25 +10,31 @@ module.exports = {
     try {
       const usedPrefix = prefix && prefix.length ? prefix : ".";
 
-      // 🔹 Leer todas las categorías de comandos
+      // 🔹 Carpeta donde están los comandos
       const commandsDir = path.join(__dirname, ".."); // Ajusta según tu estructura
       const commandFiles = fs.readdirSync(commandsDir).filter(f => f.endsWith(".js"));
 
-      // 🔹 Organizar comandos por categoría
+      // 🔹 Agrupar comandos válidos por categoría
       const categories = {};
       for (const file of commandFiles) {
         try {
           const cmd = require(path.join(commandsDir, file));
+          
+          // ✅ Solo comandos que tengan command, categoria y description
+          if (!cmd.command || !cmd.categoria || !cmd.description) continue;
+
           const category = cmd.categoria || "Otros";
           const name = Array.isArray(cmd.command) ? cmd.command[0] : cmd.command;
-          const desc = cmd.description || cmd.descripcion || "Sin descripción";
+          const desc = cmd.description;
 
           if (!categories[category]) categories[category] = [];
           categories[category].push({ name, desc });
-        } catch {}
+        } catch (err) {
+          console.log("ERROR CARGANDO COMANDO:", file, err.message);
+        }
       }
 
-      // 🔹 Construir texto del menú
+      // 🔹 Construir el texto del menú
       let menuText = `🐉 *SonGokuBot - Menú Completo* 🐉\n\n`;
       for (const cat in categories) {
         menuText += `╭───〔 ${cat.toUpperCase()} 〕───╮\n`;
@@ -39,13 +45,14 @@ module.exports = {
       }
       menuText += `🤖 SonGokuBot • Ultra Instinto • DVYER`;
 
-      // 🔹 Botones principales del menú
+      // 🔹 Botones principales
       const buttons = [
         { buttonId: `${usedPrefix}menu_descargas`, buttonText: { displayText: "📥 DESCARGAS" }, type: 1 },
         { buttonId: `${usedPrefix}menu_peliculas`, buttonText: { displayText: "🎬 PELÍCULAS" }, type: 1 },
         { buttonId: `${usedPrefix}getbot`, buttonText: { displayText: "🤖 INFO BOT" }, type: 1 },
       ];
 
+      // 🔹 Enviar el menú
       await client.sendMessage(
         m.chat,
         {
@@ -64,3 +71,4 @@ module.exports = {
     }
   }
 };
+
