@@ -1,7 +1,7 @@
 module.exports = {
   command: ["kick", "kill", "matar", "sacar"],
   description: "Expulsa a un miembro del grupo",
-  category: "groups",
+  categoria: "grupos",
   isGroup: true,
   isAdmin: true,
   botAdmin: true,
