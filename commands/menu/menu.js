@@ -55,7 +55,7 @@ module.exports = {
       // 🔹 BEFORE (DISEÑO EDITADO)
       let menuText = `
 ☞︎︎︎SonGokuBO☜︎︎︎
-⸼݇҉ֻ᠂⃟ꕥ─➤Github: github.com/YerTX2/SonGOKU 
+⸼݇҉ֻ᠂⃟ꕥ─➤Github: https://github.com/DevYerZx/SonGokuBot 
 ╭──────────────────
 ╰─🅸︎🅽︎🅵︎🅾︎
 │㆒⸼݇҉ֻ᠂⃟𓇽📅 Fecha : ${date}
