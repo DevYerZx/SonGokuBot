@@ -1,12 +1,11 @@
 const axios = require("axios")
+const { payOrBypass } = require("../../lib/pay")
 
 // API GawrGura
 const GAWRGURA_API = "https://gawrgura-api.onrender.com/download/ytdl"
 
-const BOT_NAME = "SonGokuBot"
-
-// 🧠 Control de descargas por usuario
-const videoEnProceso = new Set()
+const BOT_NAME = "KILLUA-BOT v1.00"
+const COST = 40 // 💰 costo en ZEIN por descarga
 
 module.exports = {
   command: ["ytvideo"],
@@ -14,18 +13,9 @@ module.exports = {
   description: "Descarga videos de YouTube",
 
   run: async (client, m, args) => {
-    const userId = m.sender
-
     try {
-      if (videoEnProceso.has(userId)) {
-        return client.reply(
-          m.chat,
-          "⏳ Espera a que termine tu video actual antes de pedir otro.",
-          m
-        )
-      }
-
       const url = args[0]
+
       if (!url || !url.startsWith("http")) {
         return client.reply(
           m.chat,
@@ -35,10 +25,34 @@ module.exports = {
         )
       }
 
-      // Marcar usuario como en proceso
-      videoEnProceso.add(userId)
+      // 💳 Cobro inteligente
+      const pay = await payOrBypass(m, COST, client)
+      if (!pay.ok) return
 
-      // Aviso de descarga
+      // 🧾 Avisos
+      if (pay.free) {
+        await client.reply(
+          m.chat,
+          m.isOwner
+            ? "👑 *OWNER*\nDescarga gratuita activada."
+            : "🤖 *BOT OFICIAL*\nDescarga gratuita activada.",
+          m
+        )
+      } else {
+        await client.reply(
+          m.chat,
+          `
+💸 *ZEIN PAGADO*
+━━━━━━━━━━━━━━
+🏦 Banco: -${pay.fromBank}
+💰 Jenny: -${pay.fromJenny}
+💵 Total: ${COST}
+`,
+          m
+        )
+      }
+
+      // ⏳ Descarga
       await client.reply(
         m.chat,
         `⏳ *Descargando video...*\n✅ API: GawrGura\n🤖 ${BOT_NAME}`,
@@ -46,7 +60,7 @@ module.exports = {
         global.channelInfo
       )
 
-      // Llamada a la API
+      // 📡 API
       const res = await axios.get(
         `${GAWRGURA_API}?url=${encodeURIComponent(url)}`,
         { timeout: 120000 }
@@ -59,7 +73,9 @@ module.exports = {
 
       let videoUrl = videoData.mp4
       let title = videoData.title || "video"
-      title = title.replace(/[\\/:*?"<>|]/g, "").trim().slice(0, 60)
+
+      title = title.replace(/[\\/:*?"<>|]/g, "").trim()
+      if (title.length > 60) title = title.slice(0, 60)
 
       await client.sendMessage(
         m.chat,
@@ -71,12 +87,8 @@ module.exports = {
         { quoted: m, ...global.channelInfo }
       )
 
-      // Quitar bloqueo
-      videoEnProceso.delete(userId)
-
     } catch (err) {
       console.error("YTVIDEO ERROR:", err.response?.data || err.message)
-      videoEnProceso.delete(userId)
       await client.reply(
         m.chat,
         "❌ Error al descargar el video.",
