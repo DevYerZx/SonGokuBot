@@ -14,21 +14,23 @@ module.exports = {
       const res = await axios.get(url);
       const data = res.data;
 
-      if (!data.status || !data.result || !data.result.lyrics)
+      if (!data || !data.result)
         return m.reply("❌ No se encontró la letra.");
 
-      const lyrics = data.result.lyrics;
-      const maxLength = 1200;
+      const lyrics =
+        data.result.lyrics ||
+        data.result.text ||
+        data.result;
 
-      let parts = [];
-      for (let i = 0; i < lyrics.length; i += maxLength) {
-        parts.push(lyrics.substring(i, i + maxLength));
-      }
+      if (typeof lyrics !== "string" || !lyrics.length)
+        return m.reply("❌ No se encontró la letra.");
+
+      const maxLength = 1200;
 
       await m.reply(`🎶 *Letra de:* ${args.join(" ")}`);
 
-      for (const part of parts) {
-        await m.reply(part);
+      for (let i = 0; i < lyrics.length; i += maxLength) {
+        await m.reply(lyrics.slice(i, i + maxLength));
       }
 
     } catch (e) {
