@@ -1,54 +1,45 @@
 module.exports = async (client, m) => {
   try {
-    // ───── FILTROS BÁSICOS (IGUAL QUE TU CÓDIGO FUNCIONAL) ─────
+    // ───── VALIDACIONES BÁSICAS ─────
     if (!m.isGroup) return;
     if (!m.text) return;
 
-    // 🔒 El bot nunca se castiga
+    // 🤖 El bot nunca se castiga
     if (m.fromMe) return;
 
     // 🔒 Antilink apagado
     if (!global.db.data.chats[m.chat]?.antilink) return;
 
-    // ───── REGEX ─────
-
-    // ❌ SOLO WhatsApp (grupos y canales)
+    // ❌ SOLO enlaces de WhatsApp (grupos o canales)
     const whatsappRegex =
       /(chat\.whatsapp\.com\/|whatsapp\.com\/channel\/)/i;
 
-    // ❌ Links raros / sospechosos
-    const rareLinksRegex =
-      /(https?:\/\/[^\s]+)/i;
+    if (!whatsappRegex.test(m.text)) return;
 
-    // ✅ Permitidos
-    const allowedRegex =
-      /(youtube\.com|youtu\.be|facebook\.com|fb\.watch)/i;
+    // ───── VERIFICAR ADMIN DEL BOT ─────
+    const metadata = await client.groupMetadata(m.chat).catch(() => null);
+    if (!metadata) return;
 
-    const text = m.text;
+    const botJid = client.user.id.split(":")[0] + "@s.whatsapp.net";
+    const isBotAdmin = metadata.participants.some(
+      (p) =>
+        p.id === botJid &&
+        (p.admin === "admin" || p.admin === "superadmin"),
+    );
 
-    const isWhatsApp = whatsappRegex.test(text);
-    const isAllowed = allowedRegex.test(text);
-    const isAnyLink = rareLinksRegex.test(text);
+    if (!isBotAdmin) return;
 
-    // 👉 Si es YouTube o Facebook, ignorar
-    if (isAllowed && !isWhatsApp) return;
+    // ───── PERMITIR LINK DEL MISMO GRUPO ─────
+    const gclink =
+      "https://chat.whatsapp.com/" +
+      (await client.groupInviteCode(m.chat));
 
-    // 👉 Si no es WhatsApp ni link raro, ignorar
-    if (!isWhatsApp && !isAnyLink) return;
-
-    // ───── PERMITIR LINK DEL MISMO GRUPO (COMO TU ORIGINAL) ─────
-    if (isWhatsApp) {
-      let gclink =
-        "https://chat.whatsapp.com/" +
-        (await client.groupInviteCode(m.chat));
-
-      if (new RegExp(gclink, "i").test(text)) {
-        return client.sendMessage(
-          m.chat,
-          { text: "El enlace *pertenece* a este grupo" },
-          { quoted: m },
-        );
-      }
+    if (new RegExp(gclink, "i").test(m.text)) {
+      return client.sendMessage(
+        m.chat,
+        { text: "✅ El enlace pertenece a este grupo" },
+        { quoted: m },
+      );
     }
 
     // ───── BORRAR MENSAJE ─────
@@ -65,7 +56,7 @@ module.exports = async (client, m) => {
     await client.sendMessage(
       m.chat,
       {
-        text: `Anti Enlaces\n\n@${m.sender.split("@")[0]} mandaste un enlace *prohibido*`,
+        text: `🚫 *Anti-Link*\n\n@${m.sender.split("@")[0]} enviaste un enlace de WhatsApp`,
         contextInfo: { mentionedJid: [m.sender] },
       },
       { quoted: m },
