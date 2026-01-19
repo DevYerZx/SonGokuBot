@@ -12,56 +12,56 @@ module.exports = {
         name: "Swallox Hosting",
         image: "https://i.ibb.co/rR84Ld7Q/sky.jpg",
         description: `
-╭─❑ *${BOT_NAME} Pre-Bot en Swallox* ❑─╮
+╭─❑ *🌌 ${BOT_NAME} Pre-Bot en Swallox* ❑─╮
 ↬ *Sitio Web:* https://dash.swallox.com/
 ↬ *Servicios Disponibles:*
    ⤿ Aloja tu bot de WhatsApp
    ⤿ Despliega páginas web
    ⤿ Minecraft & Python
-↬ *Soporte:*
+↬ *Soporte Oficial:*
    ⤿ Canal WhatsApp: https://chat.whatsapp.com/xxxx
    ⤿ Grupo WhatsApp: https://chat.whatsapp.com/xxxx
 ↬ *Beneficio:* ${BOT_NAME} ya está en la lista de pre-bot
 ╰───────────────────────────────╯
-        `
+`
       };
-
-      await client.sendMessage(
-        m.chat,
-        {
-          image: { url: hosting1.image },
-          caption: hosting1.description,
-        },
-        { quoted: m }
-      );
 
       // 🔹 Segundo Hosting: SkyUltraPlus
       const hosting2 = {
         name: "SkyUltraPlus Hosting",
         image: "https://i.ibb.co/rR84Ld7Q/sky.jpg",
         description: `
-╭─❑ *${BOT_NAME} Pre-Bot en SkyUltraPlus* ❑─╮
+╭─❑ *☄ ${BOT_NAME} Pre-Bot en SkyUltraPlus* ❑─╮
 ↬ *Sitio Web:* https://skyultraplus.com/
 ↬ *Servicios Disponibles:*
    ⤿ Aloja tu bot de WhatsApp
    ⤿ Despliega páginas web y apps
    ⤿ Minecraft & Python
-↬ *Soporte:*
+↬ *Soporte Oficial:*
    ⤿ Canal WhatsApp: https://chat.whatsapp.com/yyyy
    ⤿ Grupo WhatsApp: https://chat.whatsapp.com/yyyy
 ↬ *Beneficio:* ${BOT_NAME} ya está en la lista de pre-bot
 ╰───────────────────────────────╯
-        `
+`
       };
 
-      await client.sendMessage(
-        m.chat,
-        {
-          image: { url: hosting2.image },
-          caption: hosting2.description,
-        },
-        { quoted: m }
-      );
+      // 🔹 Array de hostings
+      const hostings = [hosting1, hosting2];
+
+      // 🔹 Mezclar aleatoriamente
+      const shuffled = hostings.sort(() => Math.random() - 0.5);
+
+      // 🔹 Enviar cada hosting con diseño diferente
+      for (const h of shuffled) {
+        await client.sendMessage(
+          m.chat,
+          {
+            image: { url: h.image },
+            caption: h.description,
+          },
+          { quoted: m }
+        );
+      }
 
     } catch (e) {
       console.error("HOSTING ERROR:", e);
@@ -69,4 +69,5 @@ module.exports = {
     }
   }
 };
+
 
