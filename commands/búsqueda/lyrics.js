@@ -6,7 +6,7 @@ module.exports = {
   run: async (client, m) => {
     try {
       const args = m.body.trim().split(/ +/).slice(1);
-      if (!args.length) return m.reply("❌ Ingresa el nombre de la canción o artista.");
+      if (!args.length) return m.reply("❌ Ingresa el nombre de la canción o artista para buscar la letra.");
 
       const query = encodeURIComponent(args.join(" "));
       const url = `https://gawrgura-api.onrender.com/search/lyrics?q=${query}`;
@@ -14,28 +14,26 @@ module.exports = {
       const res = await axios.get(url);
       const data = res.data;
 
-      if (!data || !data.result)
-        return m.reply("❌ No se encontró la letra.");
-
-      const lyrics =
-        data.result.lyrics ||
-        data.result.text ||
-        data.result;
-
-      if (typeof lyrics !== "string" || !lyrics.length)
-        return m.reply("❌ No se encontró la letra.");
-
-      const maxLength = 1200;
-
-      await m.reply(`🎶 *Letra de:* ${args.join(" ")}`);
-
-      for (let i = 0; i < lyrics.length; i += maxLength) {
-        await m.reply(lyrics.slice(i, i + maxLength));
+      if (!data.status || !data.result) {
+        return m.reply("❌ No se encontró la letra para esa búsqueda.");
       }
 
-    } catch (e) {
-      console.error(e);
-      m.reply("⚠️ Error al buscar la letra.");
+      const lyrics = data.result.lyrics || data.result.text || data.result; // dependiendo de la estructura
+
+      if (!lyrics || lyrics.length === 0) {
+        return m.reply("❌ Letra no disponible para esa canción.");
+      }
+
+      // Si la letra es demasiado larga se puede partir o mandar solo un fragmento
+      const maxLength = 1500;
+      const textReply = lyrics.length > maxLength
+        ? lyrics.substring(0, maxLength) + "\n\n...(continúa)"
+        : lyrics;
+
+      m.reply(`🎶 Letra de: ${args.join(" ")}\n\n${textReply}`);
+    } catch (err) {
+      console.error(err);
+      m.reply("⚠️ Ocurrió un error al buscar la letra.");
     }
   }
 };
