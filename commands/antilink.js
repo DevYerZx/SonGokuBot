@@ -8,59 +8,50 @@ module.exports = async (client, m) => {
   // 🔒 ANTILINK DESACTIVADO
   if (!global.db.data.chats[m.chat]?.antilink) return;
 
-  // 🛑 SI NO HAY TEXTO
+  // 🛑 SIN TEXTO
   if (!m.text) return;
+
+  // 👤 SENDER REAL (FORMA SEGURA)
+  const sender =
+    m.key?.participant ||
+    m.participant ||
+    m.sender ||
+    m.key?.remoteJid;
+
+  if (!sender) return;
 
   let linksProhibidos = {
     telegram: /telegram\.me|t\.me/gi,
-    facebook: /facebook\.com/gi,
     whatsapp: /chat\.whatsapp\.com/gi,
-    youtube: /youtu\.be|youtube\.com/gi,
   };
 
   function validarLink(mensaje, tipos) {
-    for (let tipo of tipos) {
-      if (mensaje.match(linksProhibidos[tipo])) {
-        return true;
-      }
-    }
-    return false;
+    return tipos.some((tipo) => linksProhibidos[tipo]?.test(mensaje));
   }
 
-  // ❌ SOLO WHATSAPP Y TELEGRAM
   let enlacesDetectados = ["whatsapp", "telegram"];
-
   if (!validarLink(m.text, enlacesDetectados)) return;
 
   try {
-    // 👤 SENDER REAL
-    const sender = m.key.participant || m.sender;
-
-    // 📌 METADATA
     const metadata = await client.groupMetadata(m.chat);
 
-    // 👑 VERIFICAR ADMIN
-    const isAdmin = metadata.participants.some(
-      (p) =>
-        p.id === sender &&
-        (p.admin === "admin" || p.admin === "superadmin"),
-    );
+    // 👑 LISTA REAL DE ADMINS
+    const adminJids = metadata.participants
+      .filter((p) => p.admin === "admin" || p.admin === "superadmin")
+      .map((p) => p.id);
 
-    // ✅ SI ES ADMIN → NO HACER NADA (NI BORRAR NI EXPULSAR)
-    if (isAdmin) return;
+    // ✅ SI ES ADMIN → NO HACER NADA
+    if (adminJids.includes(sender)) return;
 
     // 🔗 LINK DEL MISMO GRUPO
-    let gclink =
+    const gclink =
       "https://chat.whatsapp.com/" +
       (await client.groupInviteCode(m.chat));
 
-    let isGcLink = new RegExp(gclink, "i").test(m.text);
-
-    // ✅ LINK DEL MISMO GRUPO (USUARIO NORMAL)
-    if (isGcLink) {
+    if (new RegExp(gclink, "i").test(m.text)) {
       return client.sendMessage(
         m.chat,
-        { text: `El enlace *pertenece* a este grupo` },
+        { text: "El enlace *pertenece* a este grupo" },
         { quoted: m },
       );
     }
@@ -85,10 +76,11 @@ module.exports = async (client, m) => {
       { quoted: m },
     );
 
-    // 👢 EXPULSAR USUARIO
+    // 👢 EXPULSAR
     await client.groupParticipantsUpdate(m.chat, [sender], "remove");
   } catch (e) {
     console.log("ANTILINK ERROR:", e);
   }
 };
+
 
