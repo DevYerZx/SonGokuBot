@@ -4,15 +4,22 @@ const path = require("path");
 module.exports = {
   command: ["menu", "help", "ayuda"],
   categoria: "menu",
-  description: "Muestra el menú completo de SonGokuBot con todos los comandos",
+  description: "Muestra el menú completo de SonGokuBot",
 
   run: async (client, m, { prefix }) => {
     try {
       const usedPrefix = prefix && prefix.length ? prefix : ".";
+      const name = m.pushName || "Usuario";
+
+      const uptimeMs = process.uptime() * 1000;
+      const date = new Date().toLocaleDateString("es-PE");
+      const time = new Date().toLocaleTimeString("es-PE");
+      const mode = "Público";
+      const country = "Perú 🇵🇪";
 
       const commandsDir = path.join(__dirname, "..");
 
-      // 🔹 Obtener todos los archivos de comandos
+      // 🔹 Leer comandos
       const getCommandFiles = dir => {
         let files = [];
         for (const file of fs.readdirSync(dir)) {
@@ -28,40 +35,54 @@ module.exports = {
 
       const commandFiles = getCommandFiles(commandsDir);
 
-      // 🔹 Agrupar comandos por categoría
+      // 🔹 Agrupar por categoría
       const categories = {};
       for (const file of commandFiles) {
         try {
           delete require.cache[require.resolve(file)];
           const cmd = require(file);
 
-          if (!cmd.command || !cmd.categoria || !cmd.description) continue;
+          if (!cmd.command || !cmd.categoria) continue;
 
-          const category = cmd.categoria || "Otros";
-          const name = Array.isArray(cmd.command) ? cmd.command[0] : cmd.command;
+          const category = cmd.categoria || "otros";
+          const nameCmd = Array.isArray(cmd.command) ? cmd.command[0] : cmd.command;
 
           if (!categories[category]) categories[category] = [];
-          categories[category].push({
-            name,
-            desc: cmd.description
-          });
+          categories[category].push(nameCmd);
         } catch {}
       }
 
-      // 🔹 Construir texto del menú
-      let menuText = `🐉 *SonGokuBot v1.0* 🐉\n\n`;
+      // 🔹 BEFORE (DISEÑO EDITADO)
+      let menuText = `
+☞︎︎︎SonGokuBO☜︎︎︎
+⸼݇҉ֻ᠂⃟ꕥ─➤Github: github.com/YerTX2/SonGOKU 
+╭──────────────────
+╰─🅸︎🅽︎🅵︎🅾︎
+│㆒⸼݇҉ֻ᠂⃟𓇽📅 Fecha : ${date}
+│㆒⸼݇҉ֻ᠂⃟𓇽🕒 Hora  : ${time}
+│㆒⸼݇҉ֻ᠂⃟𓇽🌎 País : ${country}
+│㆒⸼݇҉ֻ᠂⃟𓇽⚙️ Modo : ${mode}
+╰─────➤☆ۣۜۜ͜͡${name}𖣘⃟ᗒ  
+㆒⸼݇҉ֻ᠂⃟𓇽🤖 ActivoBOT: ${client.msToTime
+        ? client.msToTime(uptimeMs)
+        : `${Math.floor(process.uptime())}s`}
 
+━━━━━━━━━━━━━━━━━━━━
+`.trimStart();
+
+      // 🔹 MENÚ POR CATEGORÍA
       for (const cat in categories) {
-        menuText += `╭─❑ *${cat.toUpperCase()}* ❑─╮\n`;
-        categories[cat].forEach(c => {
-          menuText += `〩 ${usedPrefix}${c.name}\n   ⤿ ${c.desc}\n`;
+        menuText += `\n\`𝖒𝖊𝖓𝖚 ${cat.toUpperCase()} ⛤⃗͜\`\n`;
+        menuText += `┌─⋅☆·̇·̣̇̇·̣̣̇·̣̇̇·̇⸼݇҉ֻ᠂⃟୨୧┈┈┈୨୧⸼݇҉ֻ᠂⃟·̇·̣̇̇·̣̣̇·̣̇̇☆─⋅┐\n`;
+
+        categories[cat].forEach(cmd => {
+          menuText += `│ ⋆➪ ${usedPrefix}${cmd}\n`;
         });
-        menuText += `╰─────────────╯\n\n`;
+
+        menuText += `└─⋅☆·̇·̣̇̇·̣̣̇·̣̇̇·̇⸼݇҉ֻ᠂⃟୨୧┈┈┈୨୧⸼݇҉ֻ᠂⃟·̇·̣̇̇·̣̣̇·̣̇̇☆─⋅┘\n`;
       }
 
-      menuText += `✨ *SonGokuBot • Ultra Instinto • DVYER*`;
-
-      // 🔹 BOTONES (CON PREFIJO, COMO PLAY)
+      // 🔹 BOTONES
       const buttons = [
         {
           buttonId: `${usedPrefix}hosting`,
@@ -75,12 +96,12 @@ module.exports = {
         },
         {
           buttonId: `${usedPrefix}getbot`,
-          buttonText: { displayText: "ℹ️ INFO DEL BOT" },
+          buttonText: { displayText: "ℹ️ INFO BOT" },
           type: 1
         }
       ];
 
-      // 🔹 Enviar menú (MISMO FORMATO QUE PLAY)
+      // 🔹 ENVIAR
       await client.sendMessage(
         m.chat,
         {
