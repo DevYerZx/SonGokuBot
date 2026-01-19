@@ -117,17 +117,17 @@ async function startBot() {
   if (!client.authState.creds.registered) {
     const phoneNumber = await question(
       log.warn("Ingrese su número de WhatsApp\n") +
-        log.info("Ejemplo: 5212345678900\n"),
+        log.info("Ejemplo: 519566666\n"),
     );
     try {
       log.info("Solicitando código de emparejamiento...");
-      const pairing = await client.requestPairingCode(phoneNumber, "1234MINI");
+      const pairing = await client.requestPairingCode(phoneNumber, "SONGOKU1");
       log.success(
         `Código de emparejamiento: ${chalk.cyanBright(pairing)} (expira en 15s)`,
       );
     } catch (err) {
       log.error("Error al solicitar el código de emparejamiento:", err);
-      exec("rm -rf ./lurus_session/*");
+      exec("rm -rf ./SonGokuBot_session/*");
       process.exit(1);
     }
   }
