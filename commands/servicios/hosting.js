@@ -38,8 +38,8 @@ module.exports = {
    ⤿ Despliega páginas web y apps
    ⤿ Minecraft & Python
 ↬ *Soporte Oficial:*
-   ⤿ Canal WhatsApp: https://chat.whatsapp.com/yyyy
-   ⤿ Grupo WhatsApp: https://chat.whatsapp.com/yyyy
+   ⤿ Canal WhatsApp:SkyUltraPlus ✨ en WhatsApp: https://whatsapp.com/channel/0029VakUvreFHWpyWUr4Jr0g
+   ⤿ Grupo WhatsApp: https://chat.whatsapp.com/LWs1yYftEYzDHG69cbVQhC
 ↬ *Beneficio:* ${BOT_NAME} ya está en la lista de pre-bot
 ╰───────────────────────────────╯
 `
