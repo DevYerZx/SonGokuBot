@@ -64,7 +64,7 @@ module.exports = {
       // 🔹 BOTONES (CON PREFIJO, COMO PLAY)
       const buttons = [
         {
-          buttonId: `${usedPrefix}.hosting`,
+          buttonId: `${usedPrefix}hosting`,
           buttonText: { displayText: "🤖 TENER BOT / HOSTING" },
           type: 1
         },
