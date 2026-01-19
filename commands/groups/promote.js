@@ -1,9 +1,9 @@
 const { resolveLidToRealJid } = require("../../lib/utils");
 
 module.exports = {
-  command: ["promote", "ascender", "daradmin"],
+  command: ["daradmin"],
   description: "Ascende un usuario a administrador del grupo",
-  category: "groups",
+  categoria: "grupos",
   use: "@0",
   isGroup: true,
   isAdmin: true,
