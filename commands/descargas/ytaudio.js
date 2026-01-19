@@ -26,6 +26,10 @@ module.exports = {
       let videoUrl = query;
       let title = "audio";
 
+      // Crear carpeta tmp si no existe
+      const tmpDir = path.join(__dirname, "../../tmp");
+      if (!fs.existsSync(tmpDir)) fs.mkdirSync(tmpDir, { recursive: true });
+
       // Si no es URL, buscar con yt-search
       if (!/^https?:\/\/(www\.)?youtube\.com\/watch\?v=/.test(query)) {
         const search = await yts(query);
@@ -66,8 +70,8 @@ module.exports = {
       }
 
       const audioUrl = apiRes.data.result;
-      const tempMp3 = path.join(__dirname, `../../tmp/${Date.now()}.mp3`);
-      const finalMp3 = path.join(__dirname, `../../tmp/${Date.now()}_final.mp3`);
+      const tempMp3 = path.join(tmpDir, `${Date.now()}.mp3`);
+      const finalMp3 = path.join(tmpDir, `${Date.now()}_final.mp3`);
 
       const audioData = await axios.get(audioUrl, { responseType: "arraybuffer" });
       fs.writeFileSync(tempMp3, Buffer.from(audioData.data));
@@ -109,5 +113,4 @@ module.exports = {
     }
   }
 };
-
 
