@@ -3,7 +3,7 @@ const { generateWAMessageFromContent } = require("@whiskeysockets/baileys");
 module.exports = {
   command: ["hidetag", "tag"],
   description: "Menciona a todos sin mostrar los @",
-  category: "groups",
+  categoria: "grupos",
   isGroup: true,
   isAdmin: true,
   use: "(*ingresa* o responde a un *texto*",
