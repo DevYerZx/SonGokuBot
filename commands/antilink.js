@@ -1,62 +1,61 @@
 module.exports = async (client, m) => {
-  try {
-    if (!m.isGroup) return;
-    if (!m.text) return;
-    if (m.fromMe) return;
+  if (!global.db.data.chats[m.chat]?.antilink) return;
 
-    if (!global.db.data.chats[m.chat]?.antilink) return;
+  let linksProhibidos = {
+    telegram: /telegram\.me|t\.me/gi,
+    facebook: /facebook\.com/gi,
+    whatsapp: /chat\.whatsapp\.com/gi,
+    youtube: /youtu\.be|youtube\.com/gi,
+  };
 
-    const whatsappRegex = /chat\.whatsapp\.com\/|whatsapp\.com\/channel\//i;
-    if (!whatsappRegex.test(m.text)) return;
+  function validarLink(mensaje, tipos) {
+    for (let tipo of tipos) {
+      if (mensaje.match(linksProhibidos[tipo])) {
+        return true;
+      }
+    }
+    return false;
+  }
 
-    const sender =
-      m.key?.participant || m.participant || m.sender;
+  let enlacesDetectados = ["whatsapp", "telegram"];
 
-    if (!sender) return;
+  if (validarLink(m.text, enlacesDetectados)) {
+    try {
+      let gclink =
+        "https://chat.whatsapp.com/" + (await client.groupInviteCode(m.chat));
+      let isLinkThisGc = new RegExp(gclink, "i");
+      let isGcLink = isLinkThisGc.test(m.text);
 
-    // comprobar admin del bot
-    const metadata = await client.groupMetadata(m.chat);
-    const botJid = client.user.id.split(":")[0] + "@s.whatsapp.net";
+      if (isGcLink) {
+        return client.sendMessage(
+          m.chat,
+          { text: `El enlace *pertenece* a este grupo` },
+          { quoted: m },
+        );
+      }
 
-    const isBotAdmin = metadata.participants.some(
-      (p) =>
-        p.id === botJid &&
-        (p.admin === "admin" || p.admin === "superadmin"),
-    );
+      await client.sendMessage(m.chat, {
+        delete: {
+          remoteJid: m.chat,
+          fromMe: false,
+          id: m.key.id,
+          participant: m.key.participant,
+        },
+      });
 
-    if (!isBotAdmin) return;
+      client.sendMessage(
+        m.chat,
+        {
+          text: `Anti Enlaces\n\n@${m.sender.split("@")[0]} mandaste un enlace *prohibido*`,
+          contextInfo: { mentionedJid: [m.sender] },
+        },
+        { quoted: m },
+      );
 
-    // permitir link del mismo grupo
-    const gclink =
-      "https://chat.whatsapp.com/" +
-      (await client.groupInviteCode(m.chat));
-
-    if (new RegExp(gclink, "i").test(m.text)) return;
-
-    // borrar mensaje
-    await client.sendMessage(m.chat, {
-      delete: {
-        remoteJid: m.chat,
-        fromMe: false,
-        id: m.key.id,
-        participant: sender,
-      },
-    });
-
-    // aviso
-    await client.sendMessage(
-      m.chat,
-      {
-        text: `🚫 Anti-Link\n\n@${sender.split("@")[0]} enviaste un enlace de WhatsApp`,
-        contextInfo: { mentionedJid: [sender] },
-      },
-      { quoted: m },
-    );
-
-    // expulsar
-    await client.groupParticipantsUpdate(m.chat, [sender], "remove");
-  } catch (e) {
-    console.log("ANTILINK ERROR:", e);
+      client.groupParticipantsUpdate(m.chat, [m.sender], "remove");
+    } catch {
+      console.debug = () => {};
+    }
   }
 };
 
