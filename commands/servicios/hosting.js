@@ -29,7 +29,7 @@ module.exports = {
       // 🔹 Segundo Hosting: SkyUltraPlus
       const hosting2 = {
         name: "SkyUltraPlus Hosting",
-        image: "https://i.ibb.co/rR84Ld7Q/sky.jpg",
+        image: "https://i.ibb.co/3mk1WyBY/IMG-20260119-WA0052.jpg",
         description: `
 ╭─❑ *☄ ${BOT_NAME} Pre-Bot en SkyUltraPlus* ❑─╮
 ↬ *Sitio Web:* https://skyultraplus.com/
