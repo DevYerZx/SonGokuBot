@@ -51,35 +51,22 @@ module.exports = {
       // Limitar a 5 resultados
       const videos = results.slice(0, 5);
 
-      await client.reply(
-        m.chat,
-        `🎬 *${videos.length} resultados encontrados*`,
-        m,
-        global.channelInfo
-      );
-
-      // Enviar videos uno por uno con diseño mejorado
-      let i = 1;
-      for (const v of videos) {
-        const caption =
-          `╭━━〔 🎵 TikTok #${i} 🎵 〕━━╮\n` +
+      // Construir catálogo
+      let catalogText = `🎬 *Resultados de TikTok para:* ${query}\n\n`;
+      videos.forEach((v, i) => {
+        catalogText +=
+          `╭───〔 🎵 TikTok #${i + 1} 〕───╮\n` +
           `┃ 👤 Autor: ${v.author?.nickname || "Desconocido"}\n` +
           `┃ ❤️ Likes: ${v.digg_count || 0} | 👁 Vistas: ${v.play_count || 0}\n` +
           `┃ ⏱ Duración: ${v.duration || 0}s\n` +
           `┃ 🔗 Link: ${v.url || "Sin link"}\n` +
-          `╰━━━━━━━━━━━━━━━━━━━━╯\n` +
-          `🤖 ${BOT_NAME}`;
+          `╰───────────────────────╯\n\n`;
+      });
 
-        await client.sendMessage(
-          m.chat,
-          {
-            video: { url: v.play },
-            caption
-          },
-          { quoted: m, ...global.channelInfo }
-        );
-        i++;
-      }
+      catalogText += `🤖 ${BOT_NAME}`;
+
+      // Enviar un solo mensaje
+      await client.reply(m.chat, catalogText, m, global.channelInfo);
 
     } catch (err) {
       console.error("TIKTOK SEARCH ERROR:", err.response?.data || err.message);
