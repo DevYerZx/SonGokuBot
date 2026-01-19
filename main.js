@@ -33,7 +33,7 @@ module.exports = async (client, m) => {
   initDB(m);
   antilink(client, m);
 
-  const prefa = ['.', '!', '#', '/'];
+  const prefa = [".", "!", "#", "/"];
   const prefix = prefa.find((p) => body.startsWith(p));
   if (!prefix) return;
 
@@ -53,37 +53,49 @@ module.exports = async (client, m) => {
     ? m.key.participant || m.participant
     : m.key.remoteJid;
 
-  let groupMetadata,
-    groupAdmins,
-    resolvedAdmins = [],
-    groupName = "";
+  let groupMetadata = null;
+  let groupAdmins = [];
+  let resolvedAdmins = [];
+  let groupName = "";
 
+  /* ================== FIX ANTI 403 + ANTI CRASH ================== */
   if (m.isGroup) {
-    groupMetadata = await client.groupMetadata(m.chat).catch(() => null);
-    groupName = groupMetadata?.subject || "";
-    groupAdmins =
-      groupMetadata?.participants.filter(
-        (p) => p.admin === "admin" || p.admin === "superadmin",
-      ) || [];
+    try {
+      groupMetadata = await client.groupMetadata(m.chat);
+    } catch (e) {
+      groupMetadata = null;
+    }
 
-    resolvedAdmins = await Promise.all(
-      groupAdmins.map((adm) =>
-        resolveLidToRealJid(adm.jid, client, m.chat).then((realJid) => ({
-          ...adm,
-          jid: realJid,
-        })),
-      ),
-    );
+    if (groupMetadata) {
+      groupName = groupMetadata.subject || "";
+
+      groupAdmins = groupMetadata.participants.filter(
+        (p) => p.admin === "admin" || p.admin === "superadmin",
+      );
+
+      resolvedAdmins = await Promise.all(
+        groupAdmins.map(async (adm) => {
+          let realJid = adm.jid;
+          try {
+            realJid = await resolveLidToRealJid(adm.jid, client, m.chat);
+          } catch (e) {}
+          return { ...adm, jid: realJid };
+        }),
+      );
+    }
   }
 
-  const isBotAdmins = m.isGroup
-    ? resolvedAdmins.some((p) => p.jid === botJid)
-    : false;
+  const isBotAdmins =
+    m.isGroup && resolvedAdmins.length
+      ? resolvedAdmins.some((p) => p.jid === botJid)
+      : false;
 
-  const isAdmins = m.isGroup
-    ? resolvedAdmins.some((p) => p.jid === m.sender)
-    : false;
+  const isAdmins =
+    m.isGroup && resolvedAdmins.length
+      ? resolvedAdmins.some((p) => p.jid === m.sender)
+      : false;
 
+  /* ================== LOG ================== */
   const h = chalk.bold.blue("************************************");
   const v = chalk.bold.white("*");
 
@@ -107,6 +119,7 @@ module.exports = async (client, m) => {
 
   console.log(`\n${h}${date}${userPrint}${senderPrint}${groupPrint}${h}`);
 
+  /* ================== EJECUCIÓN DE COMANDOS ================== */
   if (global.comandos.has(command)) {
     const cmdData = global.comandos.get(command);
     if (!cmdData) return;
@@ -114,7 +127,8 @@ module.exports = async (client, m) => {
     if (
       cmdData.isOwner &&
       !global.owner.map((num) => num + "@s.whatsapp.net").includes(m.sender)
-    ) return m.reply(mess.owner);
+    )
+      return m.reply(mess.owner);
 
     if (cmdData.isReg && !db.data.users[m.sender]?.registered)
       return m.reply(mess.registered);
@@ -129,21 +143,19 @@ module.exports = async (client, m) => {
     } catch (error) {
       console.error(
         chalk.red(`Error ejecutando comando ${command}:`),
-        error
+        error,
       );
 
       await client.sendMessage(
         m.chat,
-        { text: "Error al ejecutar el comando" },
-        {
-          quoted: m,
-          ...global.channelInfo
-        }
+        { text: "❌ Error al ejecutar el comando" },
+        { quoted: m, ...global.channelInfo },
       );
     }
   }
 };
 
+/* ================== HOT RELOAD ================== */
 const mainFile = require.resolve(__filename);
 fs.watchFile(mainFile, () => {
   fs.unwatchFile(mainFile);
