@@ -5,11 +5,12 @@
  * Creado por: Carlos Alexis (Zam)
  * Año: 2025
  * Librería: Baileys
- *
  * Nota: No borres los créditos, ni te pongas
  * créditos que no son tuyos, respeta el trabajo.
  * ================================
  **/
+/**
+**mejorando DvYer (autoEliminacion de archivos basuras como tmp**/
 
 require("./settings");
 require("./lib/database");
