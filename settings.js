@@ -1,11 +1,12 @@
 const fs = require("fs");
 const chalk = require("chalk");
 
-global.owner = ["5213332329453"]; //Cambia este número por el tuyo
-global.sessionName = "lurus_session";
-global.version = "v1.0.0 | Mini";
-global.namebot = "Ai Lurus - Mini";
-global.author = "Zam | Ai Lurus";
+global.owner = ["51907376960"]; //Cambia este número por el tuyo
+global.sessionName = "SonGokuBot_session";
+global.version = "SonGokuBot";
+global.namebot = "SonGokuBOT";
+// creador base global.author = "Zam | Ai Lurus";
+global.author = "DvYer | SonGokuBot";
 
 //Modifica los mensajes a tu preferencia
 global.mess = {
