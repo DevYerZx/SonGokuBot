@@ -1,5 +1,5 @@
 module.exports = {
-  command: ["hostig", "hosting"],
+  command: ["hosting"],
   categoria: "menu",
   description: "Muestra los hostings donde puedes desplegar bots de WhatsApp y más",
 
