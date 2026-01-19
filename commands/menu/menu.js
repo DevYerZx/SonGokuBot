@@ -10,17 +10,29 @@ module.exports = {
     try {
       const usedPrefix = prefix && prefix.length ? prefix : ".";
 
-      // 🔹 Carpeta donde están los comandos
-      const commandsDir = path.join(__dirname, ".."); // Ajusta según tu estructura
-      const commandFiles = fs.readdirSync(commandsDir).filter(f => f.endsWith(".js"));
+      const commandsDir = path.join(__dirname, "..");
+
+      // 🔹 Función recursiva para leer todos los archivos JS en subcarpetas
+      const getCommandFiles = dir => {
+        let files = [];
+        for (const file of fs.readdirSync(dir)) {
+          const fullPath = path.join(dir, file);
+          if (fs.statSync(fullPath).isDirectory()) {
+            files = files.concat(getCommandFiles(fullPath));
+          } else if (file.endsWith(".js")) {
+            files.push(fullPath);
+          }
+        }
+        return files;
+      };
+
+      const commandFiles = getCommandFiles(commandsDir);
 
       // 🔹 Agrupar comandos válidos por categoría
       const categories = {};
       for (const file of commandFiles) {
         try {
-          const cmd = require(path.join(commandsDir, file));
-          
-          // ✅ Solo comandos que tengan command, categoria y description
+          const cmd = require(file);
           if (!cmd.command || !cmd.categoria || !cmd.description) continue;
 
           const category = cmd.categoria || "Otros";
@@ -52,7 +64,7 @@ module.exports = {
         { buttonId: `${usedPrefix}getbot`, buttonText: { displayText: "🤖 INFO BOT" }, type: 1 },
       ];
 
-      // 🔹 Enviar el menú
+      // 🔹 Enviar menú
       await client.sendMessage(
         m.chat,
         {
@@ -71,4 +83,5 @@ module.exports = {
     }
   }
 };
+
 
