@@ -1,7 +1,7 @@
 module.exports = {
   command: ["on", "off"],
   description: "Activa o desactiva funciones del grupo",
-  category: "groups",
+ categoria: "grupos",
   use: "antilink",
   isGroup: true,
   isAdmin: true,
