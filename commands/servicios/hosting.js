@@ -1,71 +1,71 @@
 module.exports = {
-  command: ["hostig", "hosting", "alojamiento"],
-  categoria: "servicios",
-  description: "Muestra los servicios de hosting para bots y proyectos web",
+  command: ["hostig", "hosting"],
+  categoria: "menu",
+  description: "Muestra los hostings donde puedes desplegar bots de WhatsApp y más",
 
   run: async (client, m, { prefix }) => {
     try {
-      const usedPrefix = prefix && prefix.length ? prefix : ".";
+      const BOT_NAME = "SonGokuBot";
 
-      const text =
-`📌 *Hosting y despliegue disponibles para tu bot o proyecto web:*
+      // 🔹 Primer Hosting: Swallox
+      const hosting1 = {
+        name: "Swallox Hosting",
+        description: `🔹 Aloja tu bot de WhatsApp
+🔹 Despliega páginas web
+🔹 Minecraft & Python
+🔹 Soporte oficial en su canal y grupo de WhatsApp
+🔹 ${BOT_NAME} ya está en la lista de pre-bot`,
+        image: "https://skyultraplus.com/assets/og-image.jpg",
+        buttons: [
+          { buttonId: `${prefix}swallox_web`, buttonText: { displayText: "🌐 Sitio Web" }, type: 1 },
+          { buttonId: `${prefix}swallox_group`, buttonText: { displayText: "💬 Grupo WhatsApp" }, type: 1 },
+          { buttonId: `${prefix}swallox_channel`, buttonText: { displayText: "📢 Canal WhatsApp" }, type: 1 }
+        ]
+      };
 
-➤ *Swallox Hosting*
-   • Plataforma para alojar bots de WhatsApp y otros proyectos web.
-   • Permite desplegar Python, páginas web o Minecraft sin complicaciones.
-   • Panel de administración con acceso desde navegador.
-   • Mantén tu proyecto activo 24/7 con estabilidad y monitoreo.
-   • Sitio web: https://dash.swallox.com/ 
-
-➤ *SkyUltraPlus Hosting*
-   • Hosting especializado para bots (WhatsApp, Telegram, Discord).
-   • VPS y servidores con Node.js, Python, Minecraft y proyectos web.
-   • Diferentes planes según recursos, ideales para bots siempre online. :contentReference[oaicite:0]{index=0}
-
-🤖 *SonGokuBot está incluido en la LISTA DE PRE‑BOTS* listo para instalar en estas plataformas.*`;
-
-      // Enviar descripción principal con foto
       await client.sendMessage(
         m.chat,
         {
-          image: { url: "https://i.ibb.co/Xrxbcymh/IMG-20241011-WA0000.jpg" },
-          caption: text,
+          image: { url: hosting1.image },
+          caption: `🖤 *${hosting1.name}*\n\n⤿ ${hosting1.description}`,
+          buttons: hosting1.buttons,
+          footer: "🐉 SonGokuBot • Ultra Instinto • DVYER",
+          headerType: 4
         },
         { quoted: m }
       );
 
-      // Botones con enlaces directos (URL)
-      const buttons = [
-        {
-          buttonId: "url: https://dash.swallox.com/",
-          buttonText: { displayText: "VISITAR SWALLOX" },
-          type: 1
-        },
-        {
-          buttonId: "url: https://dash.swallox.com/", // mismo enlace para ejemplo
-          buttonText: { displayText: "VISITAR SKYULTRAPLUS" },
-          type: 1
-        },
-        {
-          buttonId: `${usedPrefix}getbot`,
-          buttonText: { displayText: "📌 INFO SONGOKU BOT" },
-          type: 1
-        }
-      ];
+      // 🔹 Segundo Hosting: SkyUltraPlus
+      const hosting2 = {
+        name: "SkyUltraPlus Hosting",
+        description: `🔹 Aloja tu bot de WhatsApp
+🔹 Despliega páginas web y apps
+🔹 Minecraft & Python
+🔹 Soporte oficial en su canal y grupo de WhatsApp
+🔹 ${BOT_NAME} ya está en la lista de pre-bot`,
+        image: "https://skyultraplus.com/assets/og-image.jpg",
+        buttons: [
+          { buttonId: `${prefix}sky_web`, buttonText: { displayText: "🌐 Sitio Web" }, type: 1 },
+          { buttonId: `${prefix}sky_group`, buttonText: { displayText: "💬 Grupo WhatsApp" }, type: 1 },
+          { buttonId: `${prefix}sky_channel`, buttonText: { displayText: "📢 Canal WhatsApp" }, type: 1 }
+        ]
+      };
 
       await client.sendMessage(
         m.chat,
         {
-          text: `🔗 Enlaces de Hosting`,
-          footer: "SonGokuBot • Ultra Instinto • DVYER",
-          buttons
+          image: { url: hosting2.image },
+          caption: `🖤 *${hosting2.name}*\n\n⤿ ${hosting2.description}`,
+          buttons: hosting2.buttons,
+          footer: "🐉 SonGokuBot • Ultra Instinto • DVYER",
+          headerType: 4
         },
         { quoted: m }
       );
 
     } catch (e) {
-      console.error("HOSTING MENU ERROR:", e);
-      client.reply(m.chat, "❌ Error al mostrar el menú de hosting.", m);
+      console.error("HOSTING ERROR:", e);
+      client.reply(m.chat, "❌ Error al mostrar los hostings.", m);
     }
   }
 };
