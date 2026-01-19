@@ -59,7 +59,7 @@ module.exports = {
 
       // 🔹 Botones principales
       const buttons = [
-        { buttonId: `${usedPrefix}.hontig`, buttonText: { displayText: "HOSTING/TENER BOT " }, type: 1 },
+        { buttonId: `${usedPrefix}hontig`, buttonText: { displayText: "HOSTING/TENER BOT " }, type: 1 },
         { buttonId: `${usedPrefix}menu_peliculas`, buttonText: { displayText: "...." }, type: 1 },
         { buttonId: `${usedPrefix}getbot`, buttonText: { displayText: "INFO BOT" }, type: 1 },
       ];
