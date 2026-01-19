@@ -1,69 +1,100 @@
 const yts = require("yt-search");
 
 module.exports = {
-command: ["play"],
-categoria: "descarga",
-description: "Buscar en YouTube",
+  command: ["play"],
+  categoria: "descarga",
+  description: "Buscar en YouTube",
 
-run: async (client, m, args) => {
-try {
-if (!args.length) {
-return client.reply(m.chat, "⚠️ Ingresa el nombre o URL de la canción.", m);
-}
+  run: async (client, m, args) => {
+    try {
+      if (!args.length) {
+        return client.reply(
+          m.chat,
+          "⚠️ Ingresa el nombre o URL de la canción.",
+          m
+        );
+      }
 
-const query = args.join(" ");  
-  const search = await yts(query);  
+      const query = args.join(" ");
+      const search = await yts(query);
 
-  if (!search.videos || !search.videos.length) {  
-    return client.reply(m.chat, "❌ No se encontraron resultados.", m);  
-  }  
+      if (!search.videos || !search.videos.length) {
+        return client.reply(
+          m.chat,
+          "❌ No se encontraron resultados.",
+          m
+        );
+      }
 
-  const video = search.videos[0];  
+      const video = search.videos[0];
 
-  // ====== DISEÑO MEJORADO ======  
-  const caption =  
-    `╭━━━〔 🎬 SON GOKU BOT 🎬 〕━━━╮\n` +  
-    `┃ 📌 *Título:* ${video.title}\n` +  
-    `┃ 👤 *Canal:* ${video.author.name}\n` +  
-    `┃ ⏱ *Duración:* ${video.timestamp}\n` +  
-    `┃ 👁 *Vistas:* ${video.views.toLocaleString()}\n` +  
-    `┃ 🔗 *URL:* ${video.url}\n` +  
-    `╰━━━━━━━━━━━━━━━━━━━━━━╯\n\n` +  
-    `👇 Elige cómo recibir el contenido`;  
+      // ✅ Thumbnail seguro (NUNCA falla)
+      const safeThumbnail = `https://i.ytimg.com/vi/${video.videoId}/hqdefault.jpg`;
 
-  const buttons = [  
-    {  
-      buttonId: `.ytaudio ${video.url}`,  
-      buttonText: { displayText: "🎵 Audio" },  
-      type: 1  
-    },  
-    {  
-      buttonId: `.ytvideo ${video.url}`,  
-      buttonText: { displayText: "🎬 Video" },  
-      type: 1  
-    },  
-    {  
-      buttonId: `.ytdoc ${video.url}`,  
-      buttonText: { displayText: "📂 Documento" },  
-      type: 1  
-    }  
-  ];  
+      // ====== DISEÑO ======
+      const caption =
+        `╭━━━〔 🎬 SON GOKU BOT 🎬 〕━━━╮\n` +
+        `┃ 📌 *Título:* ${video.title}\n` +
+        `┃ 👤 *Canal:* ${video.author.name}\n` +
+        `┃ ⏱ *Duración:* ${video.timestamp}\n` +
+        `┃ 👁 *Vistas:* ${video.views.toLocaleString()}\n` +
+        `┃ 🔗 *URL:* ${video.url}\n` +
+        `╰━━━━━━━━━━━━━━━━━━━━━━╯\n\n` +
+        `👇 Elige cómo recibir el contenido`;
 
-  await client.sendMessage(  
-    m.chat,  
-    {  
-      image: { url: video.thumbnail },  
-      caption,  
-      buttons,  
-      footer: "🐲 SonGokuBot • Descargas YouTube • DVYER 🐲",  
-      headerType: 4  
-    },  
-    { quoted: m }  
-  );  
-} catch (e) {  
-  console.error("PLAY ERROR:", e);  
-  client.reply(m.chat, "❌ Error en la búsqueda.", m);  
-}
+      const buttons = [
+        {
+          buttonId: `.ytaudio ${video.url}`,
+          buttonText: { displayText: "🎵 Audio" },
+          type: 1
+        },
+        {
+          buttonId: `.ytvideo ${video.url}`,
+          buttonText: { displayText: "🎬 Video" },
+          type: 1
+        },
+        {
+          buttonId: `.ytdoc ${video.url}`,
+          buttonText: { displayText: "📂 Documento" },
+          type: 1
+        }
+      ];
 
-}
+      // 🔒 Envío seguro (con fallback)
+      try {
+        await client.sendMessage(
+          m.chat,
+          {
+            image: { url: safeThumbnail },
+            caption,
+            buttons,
+            footer: "🐲 SonGokuBot • Descargas YouTube • DVYER 🐲",
+            headerType: 4
+          },
+          { quoted: m }
+        );
+      } catch (err) {
+        console.log("Thumbnail falló, enviando sin imagen");
+
+        await client.sendMessage(
+          m.chat,
+          {
+            text: caption,
+            buttons,
+            footer: "🐲 SonGokuBot • Descargas YouTube • DVYER 🐲",
+            headerType: 1
+          },
+          { quoted: m }
+        );
+      }
+
+    } catch (e) {
+      console.error("PLAY ERROR:", e);
+      client.reply(
+        m.chat,
+        "❌ Error en la búsqueda.",
+        m
+      );
+    }
+  }
 };
