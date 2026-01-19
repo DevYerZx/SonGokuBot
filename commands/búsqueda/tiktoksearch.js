@@ -24,7 +24,7 @@ module.exports = {
         );
       }
 
-      // ⏳ UX
+      // ⏳ Mensaje UX
       await client.reply(
         m.chat,
         `🔍 *Buscando en TikTok...*\n📌 ${query}\n🤖 ${BOT_NAME}`,
@@ -48,29 +48,38 @@ module.exports = {
         );
       }
 
-      const videos = results.slice(0, 5); // limitar a 5 resultados
+      // Limitar a 5 resultados
+      const videos = results.slice(0, 5);
 
-      // ✅ Crear elementos para lista
-      const sections = [
-        {
-          title: `Resultados de TikTok para: ${query}`,
-          rows: videos.map((v, i) => ({
-            title: `${i + 1}. ${v.author?.nickname || "Desconocido"}`,
-            description: `❤️ ${v.digg_count || 0} | 👁 ${v.play_count || 0} | ⏱ ${v.duration || 0}s`,
-            rowId: `.tiktokplay ${v.url}` // comando para reproducir video si quieres
-          }))
-        }
-      ];
+      await client.reply(
+        m.chat,
+        `🎬 *${videos.length} resultados encontrados*`,
+        m,
+        global.channelInfo
+      );
 
-      const listMessage = {
-        text: `🎬 *Resultados de TikTok* - ${BOT_NAME}`,
-        footer: `SonGokuBot • DVYER`,
-        title: "📱 Catálogo de TikToks",
-        buttonText: "Ver videos",
-        sections
-      };
+      // Enviar videos uno por uno con diseño mejorado
+      let i = 1;
+      for (const v of videos) {
+        const caption =
+          `╭━━〔 🎵 TikTok #${i} 🎵 〕━━╮\n` +
+          `┃ 👤 Autor: ${v.author?.nickname || "Desconocido"}\n` +
+          `┃ ❤️ Likes: ${v.digg_count || 0} | 👁 Vistas: ${v.play_count || 0}\n` +
+          `┃ ⏱ Duración: ${v.duration || 0}s\n` +
+          `┃ 🔗 Link: ${v.url || "Sin link"}\n` +
+          `╰━━━━━━━━━━━━━━━━━━━━╯\n` +
+          `🤖 ${BOT_NAME}`;
 
-      await client.sendMessage(m.chat, listMessage, { quoted: m });
+        await client.sendMessage(
+          m.chat,
+          {
+            video: { url: v.play },
+            caption
+          },
+          { quoted: m, ...global.channelInfo }
+        );
+        i++;
+      }
 
     } catch (err) {
       console.error("TIKTOK SEARCH ERROR:", err.response?.data || err.message);
