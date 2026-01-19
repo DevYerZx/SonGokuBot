@@ -15,7 +15,7 @@ module.exports = {
 🔹 Minecraft & Python
 🔹 Soporte oficial en su canal y grupo de WhatsApp
 🔹 ${BOT_NAME} ya está en la lista de pre-bot`,
-        image: "https://skyultraplus.com/assets/og-image.jpg",
+        image: "https://i.ibb.co/rR84Ld7Q/sky.jpg",
         buttons: [
           { buttonId: `${prefix}swallox_web`, buttonText: { displayText: "🌐 Sitio Web" }, type: 1 },
           { buttonId: `${prefix}swallox_group`, buttonText: { displayText: "💬 Grupo WhatsApp" }, type: 1 },
@@ -43,7 +43,7 @@ module.exports = {
 🔹 Minecraft & Python
 🔹 Soporte oficial en su canal y grupo de WhatsApp
 🔹 ${BOT_NAME} ya está en la lista de pre-bot`,
-        image: "https://skyultraplus.com/assets/og-image.jpg",
+        image: "https://i.ibb.co/rR84Ld7Q/sky.jpg",
         buttons: [
           { buttonId: `${prefix}sky_web`, buttonText: { displayText: "🌐 Sitio Web" }, type: 1 },
           { buttonId: `${prefix}sky_group`, buttonText: { displayText: "💬 Grupo WhatsApp" }, type: 1 },
