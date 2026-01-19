@@ -1,91 +1,112 @@
-const axios = require("axios");
-const yts = require("yt-search");
 const fs = require("fs");
 const path = require("path");
-const os = require("os");
+const axios = require("axios");
+const yts = require("yt-search");
+const { exec } = require("child_process");
 
-const BOT_NAME = "SonGokuBOT";
+const BOT_NAME = "SonGokuBot";
 
 module.exports = {
-  command: ["ytaudio", "mp3"],
+  command: ["ytaudio", "yta"],
   categoria: "descarga",
-  description: "Descarga audio de YouTube en MP3 por nombre o URL",
+  description: "Descarga audio de YouTube y lo envía compatible con WhatsApp",
 
   run: async (client, m, args) => {
     try {
-      if (!args.length)
+      if (!args.length) {
         return client.reply(
           m.chat,
-          "⚠️ Usa: .ytaudio <nombre o URL de YouTube>\nEjemplo: .ytaudio Despacito",
+          "⚠️ Ingresa el nombre del video o URL de YouTube.",
           m,
           global.channelInfo
         );
-
-      let videoUrl = args[0];
-      let videoTitle = "";
-
-      // Si es URL de YouTube
-      if (/^(https?:\/\/)?(www\.)?(youtube\.com|youtu\.be)\//.test(videoUrl)) {
-        videoTitle = videoUrl;
-      } else {
-        // Buscar por nombre con yt-search
-        const search = await yts(args.join(" "));
-        if (!search.videos || !search.videos.length)
-          return client.reply(m.chat, "❌ No se encontraron resultados.", m);
-
-        const video = search.videos[0];
-        videoUrl = video.url;
-        videoTitle = video.title;
       }
 
+      const query = args.join(" ");
+      let videoUrl = query;
+      let title = "audio";
+
+      // Si no es URL, buscar con yt-search
+      if (!/^https?:\/\/(www\.)?youtube\.com\/watch\?v=/.test(query)) {
+        const search = await yts(query);
+        if (!search.videos || !search.videos.length) {
+          return client.reply(
+            m.chat,
+            "❌ No se encontraron resultados en YouTube.",
+            m,
+            global.channelInfo
+          );
+        }
+        const v = search.videos[0];
+        videoUrl = v.url;
+        title = v.title.replace(/[\\/:*?"<>|]/g, "").slice(0, 100);
+      } else {
+        // si es URL, usarla y tomar título genérico
+        title = query.split("v=")[1].slice(0, 50);
+      }
+
+      // Mensaje de búsqueda
       await client.reply(
         m.chat,
-        `⏳ Descargando audio de:\n🎵 *${videoTitle}*\n🤖 ${BOT_NAME}`,
+        `⏳ Descargando audio de YouTube...\n🎵 ${title}\n🤖 ${BOT_NAME}`,
         m,
         global.channelInfo
       );
 
-      // Obtener URL de descarga desde la API de Gawrgura
+      // Descargar desde API Gawrgura
       const apiRes = await axios.get(
         `https://gawrgura-api.onrender.com/download/ytmp3?url=${encodeURIComponent(videoUrl)}`,
-        { timeout: 180000 }
+        { responseType: "arraybuffer", timeout: 120000 }
       );
 
-      if (!apiRes.data?.status || !apiRes.data?.result)
-        return client.reply(m.chat, "❌ No se pudo obtener el audio.", m);
+      if (!apiRes.data?.status && !apiRes.data?.result) {
+        return client.reply(
+          m.chat,
+          "❌ Error al descargar el audio desde la API.",
+          m,
+          global.channelInfo
+        );
+      }
 
       const audioUrl = apiRes.data.result;
+      const tempMp3 = path.join(__dirname, `../../tmp/${Date.now()}.mp3`);
+      const finalMp3 = path.join(__dirname, `../../tmp/${Date.now()}_final.mp3`);
 
-      // Descargar el MP3 como buffer
-      const audioBufferRes = await axios.get(audioUrl, {
-        responseType: "arraybuffer",
-        timeout: 180000
+      // Guardar archivo temporal
+      const audioData = await axios.get(audioUrl, { responseType: "arraybuffer" });
+      fs.writeFileSync(tempMp3, Buffer.from(audioData.data));
+
+      // Reencapsular con ffmpeg para WhatsApp
+      await new Promise((resolve, reject) => {
+        exec(
+          `ffmpeg -y -i "${tempMp3}" -codec:a libmp3lame -qscale:a 2 "${finalMp3}"`,
+          (err) => {
+            if (err) reject(err);
+            else resolve();
+          }
+        );
       });
-
-      // Guardar temporalmente
-      const tempFile = path.join(os.tmpdir(), `${Date.now()}.mp3`);
-      fs.writeFileSync(tempFile, audioBufferRes.data);
 
       // Enviar audio
       await client.sendMessage(
         m.chat,
         {
-          audio: fs.readFileSync(tempFile),
+          audio: { url: finalMp3 },
           mimetype: "audio/mpeg",
-          fileName: `${videoTitle}.mp3`,
-          caption: `🎵 *${videoTitle}*\n🔗 ${videoUrl}\n🤖 ${BOT_NAME}`
+          fileName: `${title}.mp3`
         },
         { quoted: m, ...global.channelInfo }
       );
 
-      // Borrar temporal
-      fs.unlinkSync(tempFile);
+      // Borrar temporales
+      fs.unlinkSync(tempMp3);
+      fs.unlinkSync(finalMp3);
 
     } catch (err) {
-      console.error("YTAUDIO ERROR:", err.response?.data || err.message);
-      await client.reply(
+      console.error("YTAUDIO ERROR:", err.response?.data || err.message || err);
+      client.reply(
         m.chat,
-        "❌ Ocurrió un error al descargar o enviar el audio.",
+        "❌ Ocurrió un error al procesar el audio.",
         m,
         global.channelInfo
       );
