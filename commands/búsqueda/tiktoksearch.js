@@ -24,7 +24,7 @@ module.exports = {
         );
       }
 
-      // ⏳ Mensaje UX
+      // ⏳ UX
       await client.reply(
         m.chat,
         `🔍 *Buscando en TikTok...*\n📌 ${query}\n🤖 ${BOT_NAME}`,
@@ -48,25 +48,29 @@ module.exports = {
         );
       }
 
-      // Limitar a 5 resultados
-      const videos = results.slice(0, 5);
+      const videos = results.slice(0, 5); // limitar a 5 resultados
 
-      // Construir catálogo
-      let catalogText = `🎬 *Resultados de TikTok para:* ${query}\n\n`;
-      videos.forEach((v, i) => {
-        catalogText +=
-          `╭───〔 🎵 TikTok #${i + 1} 〕───╮\n` +
-          `┃ 👤 Autor: ${v.author?.nickname || "Desconocido"}\n` +
-          `┃ ❤️ Likes: ${v.digg_count || 0} | 👁 Vistas: ${v.play_count || 0}\n` +
-          `┃ ⏱ Duración: ${v.duration || 0}s\n` +
-          `┃ 🔗 Link: ${v.url || "Sin link"}\n` +
-          `╰───────────────────────╯\n\n`;
-      });
+      // ✅ Crear elementos para lista
+      const sections = [
+        {
+          title: `Resultados de TikTok para: ${query}`,
+          rows: videos.map((v, i) => ({
+            title: `${i + 1}. ${v.author?.nickname || "Desconocido"}`,
+            description: `❤️ ${v.digg_count || 0} | 👁 ${v.play_count || 0} | ⏱ ${v.duration || 0}s`,
+            rowId: `.tiktokplay ${v.url}` // comando para reproducir video si quieres
+          }))
+        }
+      ];
 
-      catalogText += `🤖 ${BOT_NAME}`;
+      const listMessage = {
+        text: `🎬 *Resultados de TikTok* - ${BOT_NAME}`,
+        footer: `SonGokuBot • DVYER`,
+        title: "📱 Catálogo de TikToks",
+        buttonText: "Ver videos",
+        sections
+      };
 
-      // Enviar un solo mensaje
-      await client.reply(m.chat, catalogText, m, global.channelInfo);
+      await client.sendMessage(m.chat, listMessage, { quoted: m });
 
     } catch (err) {
       console.error("TIKTOK SEARCH ERROR:", err.response?.data || err.message);
@@ -79,3 +83,4 @@ module.exports = {
     }
   }
 };
+
