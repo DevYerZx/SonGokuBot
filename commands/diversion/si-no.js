@@ -1,29 +1,30 @@
-const axios = require("axios");
+const axios = require("axios")
 
 module.exports = {
   command: ["yesno", "siyno"],
   categoria: "diversion",
-  run: async (client, m) => {
+  run: async (client, m, args) => {
     try {
-      const args = m.body.trim().split(/ +/).slice(1);
-      if (!args.length) return m.reply("❌ Ingresa una pregunta.");
+      if (!args.length) {
+        return m.reply("❌ Ingresa una pregunta.")
+      }
 
-      const question = encodeURIComponent(args.join(" "));
-      const url = `https://api.soymaycol.icu/juegoyesno?answer=${question}&apikey=may-3697c22b`;
+      const pregunta = args.join(" ")
+      const respuestas = ["Si", "No"]
+      const answer = respuestas[Math.floor(Math.random() * respuestas.length)]
 
-      const res = await axios.get(url);
-      const data = res.data;
+      const url = `https://api.soymaycol.icu/juegoyesno?answer=${answer}&apikey=may-3697c22b`
+      const res = await axios.get(url)
 
-      if (!data.status || !data.result)
-        return m.reply("❌ No se pudo responder, intenta otra vez.");
-
-      const { question: q, userAnswer } = data.result;
+      if (!res.data.status) {
+        return m.reply("❌ No se pudo generar la respuesta.")
+      }
 
       m.reply(
-        `🎲 *Pregunta:* ${q}\n🔮 *Respuesta:* ${userAnswer}`
-      );
+        `🎲 *Pregunta:* ${pregunta}\n🔮 *Respuesta:* ${answer}`
+      )
     } catch (e) {
-      m.reply("⚠️ Ocurrió un error en la respuesta.");
+      m.reply("⚠️ Error al consultar la API.")
     }
   }
-};
+}
