@@ -12,7 +12,7 @@ module.exports = {
 
       const commandsDir = path.join(__dirname, "..");
 
-      // 🔹 Función recursiva para leer todos los archivos JS en subcarpetas
+      // 🔹 Leer todos los archivos JS en subcarpetas
       const getCommandFiles = dir => {
         let files = [];
         for (const file of fs.readdirSync(dir)) {
@@ -41,21 +41,21 @@ module.exports = {
 
           if (!categories[category]) categories[category] = [];
           categories[category].push({ name, desc });
-        } catch (err) {
-          console.log("ERROR CARGANDO COMANDO:", file, err.message);
-        }
+        } catch {}
       }
 
-      // 🔹 Construir el texto del menú
-      let menuText = `🐉 *SonGokuBot - Menú Completo* 🐉\n\n`;
+      // 🔹 Construir el menú compacto con caracteres especiales
+      let menuText = `🐉 *SonGokuBot v1.0 - Menú Completo* 🐉\n\n`;
       for (const cat in categories) {
-        menuText += `╭───〔 ${cat.toUpperCase()} 〕───╮\n`;
+        menuText += `╭─❑ *${cat.toUpperCase()}* ❑─╮\n`;
         categories[cat].forEach(c => {
-          menuText += `⚡ ${usedPrefix}${c.name}\n   📝 ${c.desc}\n`;
+          // ▸ Simula fuente pequeña con viñetas y símbolos
+          menuText += `⦿ ${usedPrefix}${c.name}\n   📝 ${c.desc}\n`;
         });
-        menuText += `╰────────────────────────╯\n\n`;
+        menuText += `╰─────────────╯\n\n`;
       }
-      menuText += `🤖 SonGokuBot • Ultra Instinto • DVYER`;
+
+      menuText += `✨ SonGokuBot • Ultra Instinto • DVYER`;
 
       // 🔹 Botones principales
       const buttons = [
