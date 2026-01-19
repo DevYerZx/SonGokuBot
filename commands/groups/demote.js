@@ -1,7 +1,7 @@
 const { resolveLidToRealJid } = require("../../lib/utils");
 
 module.exports = {
-  command: ["demote", "degradar", "quitaradmin"],
+  command: ["quitaradmin"],
   description: "Degrada a un administrador en el grupo",
   categoria: "grupos",
   use: "@0",
