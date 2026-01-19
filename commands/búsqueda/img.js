@@ -3,9 +3,11 @@ const axios = require("axios");
 module.exports = {
     command: ["gimage", "img"],
     categoria: "busqueda",
-    run: async (client, m, { args }) => {
+    run: async (client, m) => {
         try {
-            if (!args || !args.length) return m.reply("❌ Ingresa una palabra para buscar.");
+            // Obtenemos los argumentos directamente desde el mensaje
+            const args = m.body.trim().split(/ +/).slice(1);
+            if (!args.length) return m.reply("❌ Ingresa una palabra para buscar.");
 
             const query = encodeURIComponent(args.join(" "));
             const url = `https://gawrgura-api.onrender.com/search/gimage?q=${query}`;
