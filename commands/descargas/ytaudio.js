@@ -22,7 +22,7 @@ module.exports = {
         );
       }
 
-      const query = args.join(" ");
+      let query = args.join(" ");
       let videoUrl = query;
       let title = "audio";
 
@@ -41,28 +41,25 @@ module.exports = {
         videoUrl = v.url;
         title = v.title.replace(/[\\/:*?"<>|]/g, "").slice(0, 100);
       } else {
-        // si es URL, usarla y tomar título genérico
         title = query.split("v=")[1].slice(0, 50);
       }
 
-      // Mensaje de búsqueda
       await client.reply(
         m.chat,
-        `⏳ Descargando audio de YouTube...\n🎵 ${title}\n🤖 ${BOT_NAME}`,
+        `⏳ Descargando audio...\n🎵 ${title}\n🤖 ${BOT_NAME}`,
         m,
         global.channelInfo
       );
 
-      // Descargar desde API Gawrgura
+      // Descargar desde Gawrgura
       const apiRes = await axios.get(
-        `https://gawrgura-api.onrender.com/download/ytmp3?url=${encodeURIComponent(videoUrl)}`,
-        { responseType: "arraybuffer", timeout: 120000 }
+        `https://gawrgura-api.onrender.com/download/ytmp3?url=${encodeURIComponent(videoUrl)}`
       );
 
-      if (!apiRes.data?.status && !apiRes.data?.result) {
+      if (!apiRes.data?.status || !apiRes.data?.result) {
         return client.reply(
           m.chat,
-          "❌ Error al descargar el audio desde la API.",
+          "❌ Error al obtener el audio desde la API.",
           m,
           global.channelInfo
         );
@@ -72,11 +69,10 @@ module.exports = {
       const tempMp3 = path.join(__dirname, `../../tmp/${Date.now()}.mp3`);
       const finalMp3 = path.join(__dirname, `../../tmp/${Date.now()}_final.mp3`);
 
-      // Guardar archivo temporal
       const audioData = await axios.get(audioUrl, { responseType: "arraybuffer" });
       fs.writeFileSync(tempMp3, Buffer.from(audioData.data));
 
-      // Reencapsular con ffmpeg para WhatsApp
+      // Reencapsular con ffmpeg
       await new Promise((resolve, reject) => {
         exec(
           `ffmpeg -y -i "${tempMp3}" -codec:a libmp3lame -qscale:a 2 "${finalMp3}"`,
@@ -87,7 +83,7 @@ module.exports = {
         );
       });
 
-      // Enviar audio
+      // Enviar audio con nombre
       await client.sendMessage(
         m.chat,
         {
@@ -98,7 +94,7 @@ module.exports = {
         { quoted: m, ...global.channelInfo }
       );
 
-      // Borrar temporales
+      // Limpiar archivos temporales
       fs.unlinkSync(tempMp3);
       fs.unlinkSync(finalMp3);
 
@@ -113,4 +109,5 @@ module.exports = {
     }
   }
 };
+
 
