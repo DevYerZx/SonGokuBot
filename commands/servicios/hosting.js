@@ -10,7 +10,7 @@ module.exports = {
       // 🔹 Primer Hosting: Swallox
       const hosting1 = {
         name: "Swallox Hosting",
-        image: "https://i.ibb.co/rR84Ld7Q/sky.jpg",
+        image: "https://i.ibb.co/0p1FWXT9/IMG-20260119-WA0055.jpg",
         description: `
 ╭─❑ *🌌 ${BOT_NAME} Pre-Bot en Swallox* ❑─╮
 ↬ *Sitio Web:* https://dash.swallox.com/
