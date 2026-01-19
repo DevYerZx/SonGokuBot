@@ -3,7 +3,7 @@ const yts = require("yt-search");
 module.exports = {
   command: ["play"],
   categoria: "descarga",
-  description: "Buscar música en YouTube y enviar con diseño mejorado",
+  description: "Buscar en YouTube",
 
   run: async (client, m, args) => {
     try {
