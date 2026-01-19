@@ -33,9 +33,9 @@ module.exports = async (client, m) => {
   initDB(m);
   antilink(client, m);
 
-  const prefa = ['.', '!', '#', '/']
-  const prefix = prefa.find((p) => body.startsWith(p))
-  if (!prefix) return
+  const prefa = ['.', '!', '#', '/'];
+  const prefix = prefa.find((p) => body.startsWith(p));
+  if (!prefix) return;
 
   const from = m.key.remoteJid;
   const args = body.trim().split(/ +/).slice(1);
@@ -47,6 +47,7 @@ module.exports = async (client, m) => {
     .trim()
     .split(/\s+/)[0]
     .toLowerCase();
+
   const pushname = m.pushName || "Sin nombre";
   const sender = m.isGroup
     ? m.key.participant || m.participant
@@ -56,13 +57,15 @@ module.exports = async (client, m) => {
     groupAdmins,
     resolvedAdmins = [],
     groupName = "";
+
   if (m.isGroup) {
-    groupMetadata = await client.groupMetadata(m.chat).catch((_) => null);
+    groupMetadata = await client.groupMetadata(m.chat).catch(() => null);
     groupName = groupMetadata?.subject || "";
     groupAdmins =
       groupMetadata?.participants.filter(
         (p) => p.admin === "admin" || p.admin === "superadmin",
       ) || [];
+
     resolvedAdmins = await Promise.all(
       groupAdmins.map((adm) =>
         resolveLidToRealJid(adm.jid, client, m.chat).then((realJid) => ({
@@ -76,26 +79,32 @@ module.exports = async (client, m) => {
   const isBotAdmins = m.isGroup
     ? resolvedAdmins.some((p) => p.jid === botJid)
     : false;
+
   const isAdmins = m.isGroup
     ? resolvedAdmins.some((p) => p.jid === m.sender)
     : false;
 
   const h = chalk.bold.blue("************************************");
   const v = chalk.bold.white("*");
+
   const date = chalk.bold.yellow(
     `\n${v} Fecha: ${chalk.whiteBright(moment().format("DD/MM/YY HH:mm:ss"))}`,
   );
+
   const userPrint = chalk.bold.blueBright(
     `\n${v} Usuario: ${chalk.whiteBright(pushname)}`,
   );
+
   const senderPrint = chalk.bold.magentaBright(
     `\n${v} Remitente: ${gradient("deepskyblue", "darkorchid")(sender)}`,
   );
+
   const groupPrint = m.isGroup
     ? chalk.bold.cyanBright(
         `\n${v} Grupo: ${chalk.greenBright(groupName)}\n${v} ID: ${gradient("violet", "midnightblue")(from)}\n`,
       )
     : chalk.bold.greenBright(`\n${v} Chat privado\n`);
+
   console.log(`\n${h}${date}${userPrint}${senderPrint}${groupPrint}${h}`);
 
   if (global.comandos.has(command)) {
@@ -105,10 +114,11 @@ module.exports = async (client, m) => {
     if (
       cmdData.isOwner &&
       !global.owner.map((num) => num + "@s.whatsapp.net").includes(m.sender)
-    )
-      return m.reply(mess.owner);
+    ) return m.reply(mess.owner);
+
     if (cmdData.isReg && !db.data.users[m.sender]?.registered)
       return m.reply(mess.registered);
+
     if (cmdData.isGroup && !m.isGroup) return m.reply(mess.group);
     if (cmdData.isAdmin && !isAdmins) return m.reply(mess.admin);
     if (cmdData.isBotAdmin && !isBotAdmins) return m.reply(mess.botAdmin);
@@ -117,11 +127,18 @@ module.exports = async (client, m) => {
     try {
       await cmdData.run(client, m, args, { text });
     } catch (error) {
-      console.error(chalk.red(`Error ejecutando comando ${command}:`), error);
+      console.error(
+        chalk.red(`Error ejecutando comando ${command}:`),
+        error
+      );
+
       await client.sendMessage(
         m.chat,
         { text: "Error al ejecutar el comando" },
-        { quoted: m },
+        {
+          quoted: m,
+          ...global.channelInfo
+        }
       );
     }
   }
@@ -138,6 +155,3 @@ fs.watchFile(mainFile, () => {
   delete require.cache[mainFile];
   require(mainFile);
 });
-
-
-// Mini Lurus © 2025 - Creado por Zam  | GataNina-Li | DevAlexJs | Elrebelde21
