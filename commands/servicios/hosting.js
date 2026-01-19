@@ -11,22 +11,26 @@ module.exports = {
       const hosting1 = {
         name: "Swallox Hosting",
         image: "https://i.ibb.co/rR84Ld7Q/sky.jpg",
-        description: `↬ *Nombre:* Swallox Hosting
-↬ *Servicios:*
-    ⤿ Aloja tu bot de WhatsApp
-    ⤿ Despliega páginas web
-    ⤿ Minecraft & Python
+        description: `
+╭─❑ *${BOT_NAME} Pre-Bot en Swallox* ❑─╮
+↬ *Sitio Web:* https://dash.swallox.com/
+↬ *Servicios Disponibles:*
+   ⤿ Aloja tu bot de WhatsApp
+   ⤿ Despliega páginas web
+   ⤿ Minecraft & Python
 ↬ *Soporte:*
-    ⤿ Canal WhatsApp: https://chat.whatsapp.com/xxxx
-    ⤿ Grupo WhatsApp: https://chat.whatsapp.com/xxxx
-↬ *Nota:* ${BOT_NAME} ya está en la lista de pre-bot`
+   ⤿ Canal WhatsApp: https://chat.whatsapp.com/xxxx
+   ⤿ Grupo WhatsApp: https://chat.whatsapp.com/xxxx
+↬ *Beneficio:* ${BOT_NAME} ya está en la lista de pre-bot
+╰───────────────────────────────╯
+        `
       };
 
       await client.sendMessage(
         m.chat,
         {
           image: { url: hosting1.image },
-          caption: `🖤 ${hosting1.name}\n\n${hosting1.description}`,
+          caption: hosting1.description,
         },
         { quoted: m }
       );
@@ -35,22 +39,26 @@ module.exports = {
       const hosting2 = {
         name: "SkyUltraPlus Hosting",
         image: "https://i.ibb.co/rR84Ld7Q/sky.jpg",
-        description: `↬ *Nombre:* SkyUltraPlus Hosting
-↬ *Servicios:*
-    ⤿ Aloja tu bot de WhatsApp
-    ⤿ Despliega páginas web y apps
-    ⤿ Minecraft & Python
+        description: `
+╭─❑ *${BOT_NAME} Pre-Bot en SkyUltraPlus* ❑─╮
+↬ *Sitio Web:* https://skyultraplus.com/
+↬ *Servicios Disponibles:*
+   ⤿ Aloja tu bot de WhatsApp
+   ⤿ Despliega páginas web y apps
+   ⤿ Minecraft & Python
 ↬ *Soporte:*
-    ⤿ Canal WhatsApp: https://chat.whatsapp.com/yyyy
-    ⤿ Grupo WhatsApp: https://chat.whatsapp.com/yyyy
-↬ *Nota:* ${BOT_NAME} ya está en la lista de pre-bot`
+   ⤿ Canal WhatsApp: https://chat.whatsapp.com/yyyy
+   ⤿ Grupo WhatsApp: https://chat.whatsapp.com/yyyy
+↬ *Beneficio:* ${BOT_NAME} ya está en la lista de pre-bot
+╰───────────────────────────────╯
+        `
       };
 
       await client.sendMessage(
         m.chat,
         {
           image: { url: hosting2.image },
-          caption: `🖤 ${hosting2.name}\n\n${hosting2.description}`,
+          caption: hosting2.description,
         },
         { quoted: m }
       );
