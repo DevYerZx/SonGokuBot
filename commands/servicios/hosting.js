@@ -12,15 +12,15 @@ module.exports = {
         name: "Swallox Hosting",
         image: "https://i.ibb.co/0p1FWXT9/IMG-20260119-WA0055.jpg",
         description: `
-╭─❑ *🌌 ${BOT_NAME} Pre-Bot en Swallox* ❑─╮
+╭─❑ *🌌 ${BOT_NAME} Pre-Bot en SWALLOX* ❑─╮
 ↬ *Sitio Web:* https://dash.swallox.com/
 ↬ *Servicios Disponibles:*
    ⤿ Aloja tu bot de WhatsApp
    ⤿ Despliega páginas web
    ⤿ Minecraft & Python
 ↬ *Soporte Oficial:*
-   ⤿ Canal WhatsApp: https://chat.whatsapp.com/xxxx
-   ⤿ Grupo WhatsApp: https://chat.whatsapp.com/xxxx
+   ⤿ Canal WhatsApp:⚡ SwalloX Host ⚡ en WhatsApp: https://whatsapp.com/channel/0029Vb6I6zTEQIanas9U0N2I
+   ⤿ Grupo WhatsApp: https://chat.whatsapp.com/Bzo7jcdivDGJc3thZrSyEC
 ↬ *Beneficio:* ${BOT_NAME} ya está en la lista de pre-bot
 ╰───────────────────────────────╯
 `
