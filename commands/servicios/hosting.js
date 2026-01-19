@@ -33,6 +33,7 @@ module.exports = {
         description: `
 ╭─❑ *☄ ${BOT_NAME} Pre-Bot en SkyUltraPlus* ❑─╮
 ↬ *Sitio Web:* https://skyultraplus.com/
+↬ *Sitio Dash:*https://Dash.skyultraplus.com
 ↬ *Servicios Disponibles:*
    ⤿ Aloja tu bot de WhatsApp
    ⤿ Despliega páginas web y apps
