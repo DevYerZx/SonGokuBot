@@ -5,26 +5,29 @@ module.exports = {
   categoria: "diversion",
   run: async (client, m, args) => {
     try {
-      if (!args.length) {
-        return m.reply("❌ Ingresa una pregunta.")
+      if (!args[0]) {
+        return m.reply("❌ Responde con *si* o *no*")
       }
 
-      const pregunta = args.join(" ")
-      const respuestas = ["Si", "No"]
-      const answer = respuestas[Math.floor(Math.random() * respuestas.length)]
+      const answer = args[0].toLowerCase()
+      if (!["si", "no"].includes(answer)) {
+        return m.reply("❌ Solo puedes responder *si* o *no*")
+      }
 
       const url = `https://api.soymaycol.icu/juegoyesno?answer=${answer}&apikey=may-3697c22b`
       const res = await axios.get(url)
 
       if (!res.data.status) {
-        return m.reply("❌ No se pudo generar la respuesta.")
+        return m.reply("❌ No se pudo obtener respuesta")
       }
 
+      const { question, userAnswer } = res.data.result
+
       m.reply(
-        `🎲 *Pregunta:* ${pregunta}\n🔮 *Respuesta:* ${answer}`
+        `🎮 *Juego Sí o No*\n\n❓ ${question}\n🗣️ Tu respuesta: *${userAnswer}*`
       )
     } catch (e) {
-      m.reply("⚠️ Error al consultar la API.")
+      m.reply("⚠️ Error al conectar con la API")
     }
   }
 }
