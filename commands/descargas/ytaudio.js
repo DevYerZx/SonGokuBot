@@ -12,6 +12,9 @@ module.exports = {
   description: "Descarga audio de YouTube y lo envía compatible con WhatsApp",
 
   run: async (client, m, args) => {
+    let tempMp3;
+    let finalMp3;
+
     try {
       if (!args.length) {
         return client.reply(
@@ -26,14 +29,12 @@ module.exports = {
       let videoUrl = query;
       let title = "audio";
 
-      // Crear carpeta tmp si no existe
       const tmpDir = path.join(__dirname, "../../tmp");
-      if (!fs.existsSync(tmpDir)) fs.mkdirSync(tmpDir, { recursive: true });
+      fs.mkdirSync(tmpDir, { recursive: true });
 
-      // Si no es URL, buscar con yt-search
-      if (!/^https?:\/\/(www\.)?youtube\.com\/watch\?v=/.test(query)) {
+      if (!/^https?:\/\//.test(query)) {
         const search = await yts(query);
-        if (!search.videos || !search.videos.length) {
+        if (!search.videos?.length) {
           return client.reply(
             m.chat,
             "❌ No se encontraron resultados en YouTube.",
@@ -43,9 +44,9 @@ module.exports = {
         }
         const v = search.videos[0];
         videoUrl = v.url;
-        title = v.title.replace(/[\\/:*?"<>|]/g, "").slice(0, 100);
+        title = v.title.replace(/[\\/:*?"<>|]/g, "").slice(0, 80);
       } else {
-        title = query.split("v=")[1].slice(0, 50);
+        title = "audio_youtube";
       }
 
       await client.reply(
@@ -55,62 +56,50 @@ module.exports = {
         global.channelInfo
       );
 
-      // Descargar desde Gawrgura
       const apiRes = await axios.get(
-        `https://gawrgura-api.onrender.com/download/ytmp3?url=${encodeURIComponent(videoUrl)}`
+        `https://gawrgura-api.onrender.com/download/ytmp3?url=${encodeURIComponent(videoUrl)}`,
+        { timeout: 120000 }
       );
 
-      if (!apiRes.data?.status || !apiRes.data?.result) {
-        return client.reply(
-          m.chat,
-          "❌ Error al obtener el audio desde la API.",
-          m,
-          global.channelInfo
-        );
-      }
+      if (!apiRes.data?.result) throw new Error("API inválida");
 
-      const audioUrl = apiRes.data.result;
-      const tempMp3 = path.join(tmpDir, `${Date.now()}.mp3`);
-      const finalMp3 = path.join(tmpDir, `${Date.now()}_final.mp3`);
+      tempMp3 = path.join(tmpDir, `${Date.now()}.mp3`);
+      finalMp3 = path.join(tmpDir, `${Date.now()}_final.mp3`);
 
-      const audioData = await axios.get(audioUrl, { responseType: "arraybuffer" });
-      fs.writeFileSync(tempMp3, Buffer.from(audioData.data));
+      const audioData = await axios.get(apiRes.data.result, {
+        responseType: "arraybuffer",
+        timeout: 300000
+      });
 
-      // Reencapsular con ffmpeg
+      fs.writeFileSync(tempMp3, audioData.data);
+
       await new Promise((resolve, reject) => {
         exec(
           `ffmpeg -y -i "${tempMp3}" -codec:a libmp3lame -qscale:a 2 "${finalMp3}"`,
-          (err) => {
-            if (err) reject(err);
-            else resolve();
-          }
+          err => (err ? reject(err) : resolve())
         );
       });
 
-      // Enviar audio con nombre
       await client.sendMessage(
         m.chat,
         {
-          audio: { url: finalMp3 },
+          audio: fs.readFileSync(finalMp3),
           mimetype: "audio/mpeg",
           fileName: `${title}.mp3`
         },
         { quoted: m, ...global.channelInfo }
       );
 
-      // Limpiar archivos temporales
-      fs.unlinkSync(tempMp3);
-      fs.unlinkSync(finalMp3);
-
     } catch (err) {
-      console.error("YTAUDIO ERROR:", err.response?.data || err.message || err);
-      client.reply(
+      await client.reply(
         m.chat,
         "❌ Ocurrió un error al procesar el audio.",
         m,
         global.channelInfo
       );
+    } finally {
+      if (tempMp3 && fs.existsSync(tempMp3)) fs.unlinkSync(tempMp3);
+      if (finalMp3 && fs.existsSync(finalMp3)) fs.unlinkSync(finalMp3);
     }
   }
 };
-
