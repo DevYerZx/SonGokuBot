@@ -44,13 +44,13 @@ module.exports = {
         } catch {}
       }
 
-      // 🔹 Construir el menú compacto con caracteres especiales
-      let menuText = `🐉 *SonGokuBot v1.0 - Menú Completo* 🐉\n\n`;
+      // 🔹 Construir el menú con estilo compacto
+      let menuText = `🐉 SonGokuBot v1.0 - Menú Completo 🐉\n\n`;
+
       for (const cat in categories) {
         menuText += `╭─❑ *${cat.toUpperCase()}* ❑─╮\n`;
         categories[cat].forEach(c => {
-          // ▸ Simula fuente pequeña con viñetas y símbolos
-          menuText += `⦿ ${usedPrefix}${c.name}\n   📝 ${c.desc}\n`;
+          menuText += `〩 ${usedPrefix}${c.name}\n   ⤿ ${c.desc}\n`;
         });
         menuText += `╰─────────────╯\n\n`;
       }
@@ -59,9 +59,9 @@ module.exports = {
 
       // 🔹 Botones principales
       const buttons = [
-        { buttonId: `${usedPrefix}menu_descargas`, buttonText: { displayText: "📥 DESCARGAS" }, type: 1 },
-        { buttonId: `${usedPrefix}menu_peliculas`, buttonText: { displayText: "🎬 PELÍCULAS" }, type: 1 },
-        { buttonId: `${usedPrefix}getbot`, buttonText: { displayText: "🤖 INFO BOT" }, type: 1 },
+        { buttonId: `${usedPrefix}menu_descargas`, buttonText: { displayText: "DESCARGAS" }, type: 1 },
+        { buttonId: `${usedPrefix}menu_peliculas`, buttonText: { displayText: "PELÍCULAS" }, type: 1 },
+        { buttonId: `${usedPrefix}getbot`, buttonText: { displayText: "INFO BOT" }, type: 1 },
       ];
 
       // 🔹 Enviar menú
