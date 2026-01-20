@@ -33,14 +33,14 @@ module.exports = {
 
       // ====== DISEÑO ======
       const caption =
-        `╭━━━〔 🎬 SON GOKU BOT 🎬 〕━━━╮\n` +
-        `┃ 📌 *Título:* ${video.title}\n` +
-        `┃ 👤 *Canal:* ${video.author.name}\n` +
-        `┃ ⏱ *Duración:* ${video.timestamp}\n` +
-        `┃ 👁 *Vistas:* ${video.views.toLocaleString()}\n` +
-        `┃ 🔗 *URL:* ${video.url}\n` +
+        `╭━━━〔 ꕶONメＧOｋUメYT 〕━━━╮\n` +
+        `┃ *メㅤTítulo​ :* ${video.title}\n` +
+        `┃ *メ Canal:* ${video.author.name}\n` +
+        `┃ *メ Duración:* ${video.timestamp}\n` +
+        `┃ *メ Vistas:* ${video.views.toLocaleString()}\n` +
+        `┃ *メ URL:* ${video.url}\n` +
         `╰━━━━━━━━━━━━━━━━━━━━━━╯\n\n` +
-        `👇 Elige cómo recibir el contenido`;
+        `👇 Elige cómo recibir el contenidoㅤ〆​ `;
 
       const buttons = [
         {
