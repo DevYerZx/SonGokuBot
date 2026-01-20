@@ -6,7 +6,7 @@ const BOT_NAME = "SonGokuBot";
 const API_URL = "https://nexevo-api.vercel.app/download/y2";
 
 module.exports = {
-  command: ["ytnexevo","ytmp4"],
+  command: ["ytmp4"],
   categoria: "descarga",
   description: "Descarga video de YouTube y lo envía como video",
 
