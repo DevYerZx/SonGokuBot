@@ -2,6 +2,7 @@ const axios = require("axios");
 const yts = require("yt-search");
 const fs = require("fs");
 const path = require("path");
+const { exec } = require("child_process");
 
 const BOT_NAME = "SonGokuBot";
 const API_URL = "https://nexevo-api.vercel.app/download/y2";
@@ -24,17 +25,10 @@ module.exports = {
         );
       }
 
-      await client.reply(
-        m.chat,
-        `⏳ Buscando tu video...\n🤖 ${BOT_NAME}`,
-        m,
-        global.channelInfo
-      );
-
       let videoUrl = args.join(" ");
       let title = "video";
 
-      // 🔍 Si no es link → buscar con yt-search
+      // Si no es URL, buscar con yt-search
       if (!videoUrl.startsWith("http")) {
         const search = await yts(videoUrl);
         if (!search.videos?.length) {
@@ -51,35 +45,52 @@ module.exports = {
 
       await client.reply(
         m.chat,
-        "⬇️ Descargando video...",
+        `⏳ Buscando tu video...\n🤖 ${BOT_NAME}`,
         m,
         global.channelInfo
       );
 
+      // Llamar a la API Nexevo
       const res = await axios.get(API_URL, {
         params: { url: videoUrl },
         timeout: 120000
       });
 
       const data = res.data?.result;
-      if (!data?.url) throw new Error("Respuesta inválida");
+      if (!data?.url) throw new Error("No se obtuvo URL de descarga");
 
-      const safeTitle = (data.info?.title || title)
-        .replace(/[\\/:*?"<>|]/g, "")
-        .trim()
-        .slice(0, 60);
-
+      // Crear carpeta tmp si no existe
       const tmpPath = path.join(__dirname, "../../tmp");
       fs.mkdirSync(tmpPath, { recursive: true });
 
+      // Descargar el video
       const videoRes = await axios.get(data.url, {
         responseType: "arraybuffer",
         timeout: 300000
       });
 
-      filePath = path.join(tmpPath, `${Date.now()}.mp4`);
-      fs.writeFileSync(filePath, videoRes.data);
+      const rawPath = path.join(tmpPath, `${Date.now()}_raw.mp4`);
+      fs.writeFileSync(rawPath, videoRes.data);
 
+      // Convertir a formato compatible WhatsApp usando FFmpeg
+      filePath = path.join(tmpPath, `${Date.now()}.mp4`);
+      await new Promise((resolve, reject) => {
+        exec(
+          `ffmpeg -i "${rawPath}" -c:v libx264 -c:a aac -preset fast -movflags +faststart "${filePath}" -y`,
+          (err, stdout, stderr) => {
+            fs.unlinkSync(rawPath); // borrar el archivo crudo
+            if (err) reject(err);
+            else resolve(stdout);
+          }
+        );
+      });
+
+      const safeTitle = (data.info.title || title)
+        .replace(/[\\/:*?"<>|]/g, "")
+        .trim()
+        .slice(0, 60);
+
+      // Enviar video
       await client.sendMessage(
         m.chat,
         {
@@ -95,14 +106,12 @@ module.exports = {
       console.error(err);
       await client.reply(
         m.chat,
-        "❌ Error al descargar o enviar el video.",
+        "❌ Error al procesar el video.",
         m,
         global.channelInfo
       );
     } finally {
-      if (filePath && fs.existsSync(filePath)) {
-        fs.unlinkSync(filePath);
-      }
+      if (filePath && fs.existsSync(filePath)) fs.unlinkSync(filePath);
     }
   }
 };
