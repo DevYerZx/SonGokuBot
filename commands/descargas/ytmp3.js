@@ -9,10 +9,10 @@ const API_URL = "https://nexevo-api.vercel.app/download/y";
 module.exports = {
   command: ["ytmp3"],
   categoria: "descarga",
-  description: "Descarga el audio de YouTube en MP3 con imagen",
+  description: "Descarga audio de YouTube y envía la miniatura",
 
   run: async (client, m, args) => {
-    let audioPath;
+    let audioPath, thumbnailPath;
 
     try {
       if (!args.length)
@@ -25,7 +25,6 @@ module.exports = {
       let query = args.join(" ");
       let title = "audio";
 
-      // Si no es link, buscar con yt-search
       if (!query.includes("youtube.com") && !query.includes("youtu.be")) {
         const search = await yts(query);
         if (!search.videos.length)
@@ -42,7 +41,6 @@ module.exports = {
         global.channelInfo
       );
 
-      // Llamar a la API
       const res = await axios.get(API_URL, { params: { url: query }, timeout: 120000 });
       const result = res.data?.result;
 
@@ -53,27 +51,32 @@ module.exports = {
         .trim()
         .slice(0, 50);
 
-      const thumbnailUrl = result.info?.thumbnail;
-
-      // Crear carpeta temporal
       const tmpDir = path.join(__dirname, "../../tmp");
       fs.mkdirSync(tmpDir, { recursive: true });
 
-      audioPath = path.join(tmpDir, `${Date.now()}.mp3`);
-
       // Descargar audio
+      audioPath = path.join(tmpDir, `${Date.now()}.mp3`);
       const audioData = await axios.get(result.url, { responseType: "arraybuffer", timeout: 300000 });
       fs.writeFileSync(audioPath, audioData.data);
 
-      // Descargar miniatura si existe
-      let thumbnailPath;
-      if (thumbnailUrl) {
-        const thumbRes = await axios.get(thumbnailUrl, { responseType: "arraybuffer" });
+      // Descargar miniatura
+      if (result.info?.thumbnail) {
+        const thumbRes = await axios.get(result.info.thumbnail, { responseType: "arraybuffer" });
         thumbnailPath = path.join(tmpDir, `${Date.now()}_thumb.jpg`);
         fs.writeFileSync(thumbnailPath, thumbRes.data);
+
+        // Enviar la miniatura primero
+        await client.sendMessage(
+          m.chat,
+          {
+            image: fs.readFileSync(thumbnailPath),
+            caption: `🎵 *${safeTitle}*\n🤖 ${BOT_NAME}`,
+          },
+          { quoted: m, ...global.channelInfo }
+        );
       }
 
-      // Enviar audio con imagen
+      // Enviar audio
       await client.sendMessage(
         m.chat,
         {
@@ -81,14 +84,9 @@ module.exports = {
           mimetype: "audio/mpeg",
           ptt: false,
           fileName: `${safeTitle}.mp3`,
-          caption: `🎵 *${safeTitle}*\n🤖 ${BOT_NAME}`,
-          thumbnail: thumbnailPath ? fs.readFileSync(thumbnailPath) : undefined
         },
         { quoted: m, ...global.channelInfo }
       );
-
-      // Borrar miniatura si se creó
-      if (thumbnailPath && fs.existsSync(thumbnailPath)) fs.unlinkSync(thumbnailPath);
 
     } catch (error) {
       console.error(error);
@@ -100,6 +98,7 @@ module.exports = {
       );
     } finally {
       if (audioPath && fs.existsSync(audioPath)) fs.unlinkSync(audioPath);
+      if (thumbnailPath && fs.existsSync(thumbnailPath)) fs.unlinkSync(thumbnailPath);
     }
   }
 };
