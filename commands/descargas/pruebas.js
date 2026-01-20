@@ -6,9 +6,9 @@ const BOT_NAME = "SonGokuBot";
 const API_URL = "https://nexevo-api.vercel.app/download/y2";
 
 module.exports = {
-  command: ["ytmp4"],
+  command: ["ytnexevo", "ytvideo", "ytmp4"],
   categoria: "descarga",
-  description: "Descarga video de YouTube y lo envía como video",
+  description: "Descarga video de YouTube y lo envía correctamente",
 
   run: async (client, m, args) => {
     let filePath;
@@ -32,37 +32,43 @@ module.exports = {
         global.channelInfo
       );
 
-      const res = await axios.get(API_URL, {
+      const apiRes = await axios.get(API_URL, {
         params: { url: videoUrl },
         timeout: 120000
       });
 
-      const data = res.data?.result;
+      const data = apiRes.data?.result;
       if (!data?.url) throw new Error("Respuesta inválida");
 
-      const title = data.info?.title || "Video YouTube";
-      const safeTitle = title
-        .replace(/[\\/:*?"<>|]/g, "")
-        .trim()
-        .slice(0, 60);
+      const title = data.info?.title || "YouTube Video";
+      const safeTitle = title.replace(/[\\/:*?"<>|]/g, "").slice(0, 60);
 
-      const tmpPath = path.join(__dirname, "../../tmp");
-      fs.mkdirSync(tmpPath, { recursive: true });
+      const tmpDir = path.join(__dirname, "../../tmp");
+      fs.mkdirSync(tmpDir, { recursive: true });
 
-      const videoRes = await axios.get(data.url, {
-        responseType: "arraybuffer",
+      filePath = path.join(tmpDir, `${Date.now()}.mp4`);
+
+      const videoStream = await axios({
+        method: "GET",
+        url: data.url,
+        responseType: "stream",
         timeout: 300000
       });
 
-      filePath = path.join(tmpPath, `${Date.now()}.mp4`);
-      fs.writeFileSync(filePath, videoRes.data);
+      const writer = fs.createWriteStream(filePath);
+      videoStream.data.pipe(writer);
+
+      await new Promise((resolve, reject) => {
+        writer.on("finish", resolve);
+        writer.on("error", reject);
+      });
 
       await client.sendMessage(
         m.chat,
         {
           video: fs.readFileSync(filePath),
           mimetype: "video/mp4",
-          caption: `🎬 ${safeTitle}\n📺 Calidad: ${data.quality}p\n🤖 ${BOT_NAME}`
+          caption: `🎬 ${safeTitle}\n📺 ${data.quality}p\n🤖 ${BOT_NAME}`
         },
         { quoted: m, ...global.channelInfo }
       );
