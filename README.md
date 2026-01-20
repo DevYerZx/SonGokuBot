@@ -33,16 +33,6 @@ Gracias a [AzamiJs](https://github.com/AzamiJs).
 ---
 ---
 
-🧰 𝐑𝐞𝐪𝐮𝐢𝐬𝐢𝐭𝐨𝐬
-
-🟢 **Node.js v18+**  
-<p align="center">  
-  <img src="https://img.shields.io/badge/Node.js-18+-green?logo=node.js"/>  
-  <img src="https://img.shields.io/badge/Git-required-red?logo=git"/>  
-  <img src="https://img.shields.io/badge/VS%20Code-recommended-blue?logo=visualstudiocode"/>  
-</p>  
-
----
 
 📥 𝐈𝐧𝐬𝐭𝐚𝐥𝐚𝐜𝐢𝐨́𝐧 𝐋𝐨𝐜𝐚𝐥
 
