@@ -1,6 +1,6 @@
 <div align="center">
 
-# 🐉🔥 𝐒𝐨𝐧𝐆𝐨𝐤𝐮𝐁𝐨𝐭 🔥🐉
+# ⺪ㅤSonGokuBOTㅤ乂​
 
 <img src="https://telegra.ph/file/5a2eb62dca1eafb952f31.jpg" alt="SonGOKU" width="900"/>  
 
@@ -27,7 +27,7 @@
 
 <div align="center">
 <img src="https://avatars.githubusercontent.com/AzamiJs" width="120" style="border-radius:50%"/>  
-Gracias a [AzamiJs](https://github.com/AzamiJs) por la inspiración y soporte en la creación de este bot.
+Gracias a [AzamiJs](https://github.com/AzamiJs) 
 </div>
 
 ---
