@@ -17,6 +17,14 @@ module.exports = {
       const mode = "Público";
       const country = "Perú 🇵🇪";
 
+      // Formatear tiempo en hh:mm:ss
+      const formatUptime = ms => {
+        const h = Math.floor(ms / 3600000);
+        const m = Math.floor((ms % 3600000) / 60000);
+        const s = Math.floor((ms % 60000) / 1000);
+        return `${h.toString().padStart(2,"0")}:${m.toString().padStart(2,"0")}:${s.toString().padStart(2,"0")}`;
+      };
+
       const commandsDir = path.join(__dirname, "..");
 
       // 🔹 Leer comandos
@@ -44,45 +52,44 @@ module.exports = {
 
           if (!cmd.command || !cmd.categoria) continue;
 
-          const category = cmd.categoria || "otros";
+          const category = cmd.categoria.toLowerCase() || "otros";
           const nameCmd = Array.isArray(cmd.command) ? cmd.command[0] : cmd.command;
 
-          if (!categories[category]) categories[category] = [];
-          categories[category].push(nameCmd);
+          if (!categories[category]) categories[category] = new Set();
+          categories[category].add(nameCmd);
         } catch {}
       }
+
+      // Ordenar categorías alfabéticamente
+      const sortedCategories = Object.keys(categories).sort();
 
       // 🔹 DISEÑO DEL MENÚ
       let menuText = `
 ☞︎︎︎SonGokuBO☜︎︎︎
 ⸼݇҉ֻ᠂⃟ꕥ─➤Github: https://github.com/DevYerZx/SonGokuBot 
 ╭──────────────────
+Hola *${name}*, aquí tienes los comandos disponibles:
 ╰─🅸︎🅽︎🅵︎🅾︎
-│㆒⸼݇҉ֻ᠂⃟𓇽📅 Fecha : ${date}
-│㆒⸼݇҉ֻ᠂⃟𓇽🕒 Hora  : ${time}
-│㆒⸼݇҉ֻ᠂⃟𓇽🌎 País : ${country}
-│㆒⸼݇҉ֻ᠂⃟𓇽⚙️ Modo : ${mode}
-╰─────➤☆ۣۜۜ͜͡${name}𖣘⃟ᗒ  
-㆒⸼݇҉ֻ᠂⃟𓇽🤖 ActivoBOT: ${client.msToTime
-        ? client.msToTime(uptimeMs)
-        : `${Math.floor(process.uptime())}s`}
-
+│📅 Fecha : ${date}
+│🕒 Hora  : ${time}
+│🌎 País  : ${country}
+│⚙️ Modo  : ${mode}
+│🤖 ActivoBOT: ${formatUptime(uptimeMs)}
 ━━━━━━━━━━━━━━━━━━━━
 `.trimStart();
 
       // 🔹 MENÚ POR CATEGORÍA
-      for (const cat in categories) {
+      for (const cat of sortedCategories) {
+        const cmds = Array.from(categories[cat]).sort();
         menuText += `\n\`𝖒𝖊𝖓𝖚 ${cat.toUpperCase()} ⛤⃗͜\`\n`;
         menuText += `┌─⋅☆·̇·̣̇̇·̣̣̇·̣̇̇·̇⸼݇҉ֻ᠂⃟୨୧┈┈┈୨୧⸼݇҉ֻ᠂⃟·̇·̣̇̇·̣̣̇·̣̇̇☆─⋅┐\n`;
-
-        categories[cat].forEach(cmd => {
+        cmds.forEach(cmd => {
           menuText += `│ ⋆➪ ${usedPrefix}${cmd}\n`;
         });
-
         menuText += `└─⋅☆·̇·̣̇̇·̣̣̇·̣̇̇·̇⸼݇҉ֻ᠂⃟୨୧┈┈┈୨୧⸼݇҉ֻ᠂⃟·̇·̣̇̇·̣̣̇·̣̇̇☆─⋅┘\n`;
       }
 
-      // 🔹 BOTÓN ÚNICO
+      // 🔹 BOTÓN
       const buttons = [
         {
           buttonId: `${usedPrefix}hosting`,
@@ -95,9 +102,7 @@ module.exports = {
       await client.sendMessage(
         m.chat,
         {
-          image: {
-            url: "https://i.ibb.co/Xrxbcymh/IMG-20241011-WA0000.jpg"
-          },
+          image: { url: "https://i.ibb.co/Xrxbcymh/IMG-20241011-WA0000.jpg" },
           caption: menuText,
           buttons,
           footer: "🐉 SonGokuBot • Ultra Instinto • DVYER",
