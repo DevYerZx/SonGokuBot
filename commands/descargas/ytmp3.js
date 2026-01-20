@@ -9,7 +9,7 @@ const API_URL = "https://nexevo-api.vercel.app/download/y";
 module.exports = {
   command: ["ytmp3"],
   categoria: "descarga",
-  description: "Descarga el audio de YouTube en MP3",
+  description: "Descarga el audio de YouTube en MP3 con imagen",
 
   run: async (client, m, args) => {
     let audioPath;
@@ -53,6 +53,8 @@ module.exports = {
         .trim()
         .slice(0, 50);
 
+      const thumbnailUrl = result.info?.thumbnail;
+
       // Crear carpeta temporal
       const tmpDir = path.join(__dirname, "../../tmp");
       fs.mkdirSync(tmpDir, { recursive: true });
@@ -63,7 +65,15 @@ module.exports = {
       const audioData = await axios.get(result.url, { responseType: "arraybuffer", timeout: 300000 });
       fs.writeFileSync(audioPath, audioData.data);
 
-      // Enviar audio
+      // Descargar miniatura si existe
+      let thumbnailPath;
+      if (thumbnailUrl) {
+        const thumbRes = await axios.get(thumbnailUrl, { responseType: "arraybuffer" });
+        thumbnailPath = path.join(tmpDir, `${Date.now()}_thumb.jpg`);
+        fs.writeFileSync(thumbnailPath, thumbRes.data);
+      }
+
+      // Enviar audio con imagen
       await client.sendMessage(
         m.chat,
         {
@@ -71,10 +81,14 @@ module.exports = {
           mimetype: "audio/mpeg",
           ptt: false,
           fileName: `${safeTitle}.mp3`,
-          caption: `🎵 *${safeTitle}*\n🤖 ${BOT_NAME}`
+          caption: `🎵 *${safeTitle}*\n🤖 ${BOT_NAME}`,
+          thumbnail: thumbnailPath ? fs.readFileSync(thumbnailPath) : undefined
         },
         { quoted: m, ...global.channelInfo }
       );
+
+      // Borrar miniatura si se creó
+      if (thumbnailPath && fs.existsSync(thumbnailPath)) fs.unlinkSync(thumbnailPath);
 
     } catch (error) {
       console.error(error);
