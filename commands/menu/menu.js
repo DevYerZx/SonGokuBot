@@ -17,7 +17,6 @@ module.exports = {
       const mode = "Público";
       const country = "Perú 🇵🇪";
 
-      // Formatear tiempo en hh:mm:ss
       const formatUptime = ms => {
         const h = Math.floor(ms / 3600000);
         const m = Math.floor((ms % 3600000) / 60000);
@@ -27,7 +26,6 @@ module.exports = {
 
       const commandsDir = path.join(__dirname, "..");
 
-      // 🔹 Leer comandos
       const getCommandFiles = dir => {
         let files = [];
         for (const file of fs.readdirSync(dir)) {
@@ -43,7 +41,6 @@ module.exports = {
 
       const commandFiles = getCommandFiles(commandsDir);
 
-      // 🔹 Agrupar por categoría
       const categories = {};
       for (const file of commandFiles) {
         try {
@@ -60,25 +57,22 @@ module.exports = {
         } catch {}
       }
 
-      // Ordenar categorías alfabéticamente
       const sortedCategories = Object.keys(categories).sort();
 
-      // 🔹 DISEÑO DEL MENÚ
       let menuText = `
-☞︎︎︎SonGokuBOT☜︎︎︎
+☞︎︎︎SonGokuBO☜︎︎︎
 ⸼݇҉ֻ᠂⃟ꕥ─➤Github: https://github.com/DevYerZx/SonGokuBot 
 ╭──────────────────
-Hola *${name}*, aquí tienes los comandos disponibles:
 ╰─🅸︎🅽︎🅵︎🅾︎
-│📅 Fecha : ${date}
-│🕒 Hora  : ${time}
-│🌎 País  : ${country}
-│⚙️ Modo  : ${mode}
-│🤖 ActivoBOT: ${formatUptime(uptimeMs)}
+│㆒⸼݇҉ֻ᠂⃟𓇽📅 Fecha : ${date}
+│㆒⸼݇҉ֻ᠂⃟𓇽🕒 Hora  : ${time}
+│㆒⸼݇҉ֻ᠂⃟𓇽🌎 País : ${country}
+│㆒⸼݇҉ֻ᠂⃟𓇽⚙️ Modo : ${mode}
+╰─────➤☆ۣۜۜ͜͡${name}𖣘⃟ᗒ
+㆒⸼݇҉ֻ᠂⃟𓇽🤖 ActivoBOT: ${formatUptime(uptimeMs)}
 ━━━━━━━━━━━━━━━━━━━━
 `.trimStart();
 
-      // 🔹 MENÚ POR CATEGORÍA
       for (const cat of sortedCategories) {
         const cmds = Array.from(categories[cat]).sort();
         menuText += `\n\`𝖒𝖊𝖓𝖚 ${cat.toUpperCase()} ⛤⃗͜\`\n`;
@@ -89,7 +83,6 @@ Hola *${name}*, aquí tienes los comandos disponibles:
         menuText += `└─⋅☆·̇·̣̇̇·̣̣̇·̣̇̇·̇⸼݇҉ֻ᠂⃟୨୧┈┈┈୨୧⸼݇҉ֻ᠂⃟·̇·̣̇̇·̣̣̇·̣̇̇☆─⋅┘\n`;
       }
 
-      // 🔹 BOTÓN
       const buttons = [
         {
           buttonId: `${usedPrefix}hosting`,
@@ -98,7 +91,6 @@ Hola *${name}*, aquí tienes los comandos disponibles:
         }
       ];
 
-      // 🔹 ENVIAR MENÚ
       await client.sendMessage(
         m.chat,
         {
