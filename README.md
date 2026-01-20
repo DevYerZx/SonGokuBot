@@ -32,7 +32,6 @@ Inspirado en la fuerza y evolución de **Son Goku** 🐲⚡
 
 - 🟢 **Node.js v18+**
 - 🟢 **Git**
-- 🟢 Editor de texto (VS Code recomendado)
 
 <p align="center">
   <img src="https://img.shields.io/badge/Node.js-18+-green?logo=node.js"/>
