@@ -65,7 +65,7 @@ module.exports = {
 
       // 🔹 DISEÑO DEL MENÚ
       let menuText = `
-☞︎︎︎SonGokuBO☜︎︎︎
+☞︎︎︎SonGokuBOT☜︎︎︎
 ⸼݇҉ֻ᠂⃟ꕥ─➤Github: https://github.com/DevYerZx/SonGokuBot 
 ╭──────────────────
 Hola *${name}*, aquí tienes los comandos disponibles:
