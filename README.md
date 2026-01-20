@@ -23,12 +23,6 @@
 
 ---
 
-## 🌟 𝐃𝐞𝐬𝐜𝐫𝐢𝐩𝐜𝐢𝐨́𝐧
-
-**SonGokuBot** es un bot de WhatsApp **rápido, modular y escalable**, ideal para:
-- Aprender desarrollo de bots
-- Crear tu propio bot personalizado
-- Implementar en servidores, VPS o plataformas cloud
 
 Inspirado en la fuerza y evolución de **Son Goku** 🐲⚡
 
