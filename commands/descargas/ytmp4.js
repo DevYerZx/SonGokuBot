@@ -1,102 +1,108 @@
 const axios = require("axios");
+const yts = require("yt-search");
 const fs = require("fs");
 const path = require("path");
-const { exec } = require("child_process");
-const yts = require("yt-search");
 
+const BOT_NAME = "SonGokuBot";
 const API_URL = "https://nexevo-api.vercel.app/download/y2";
 
 module.exports = {
-  command: ["ytnexevo", "ytmp4"],
+  command: ["ytmp4"],
   categoria: "descarga",
-  description: "Descarga video de YouTube por link o búsqueda",
+  description: "Descarga y envía solo el video de YouTube",
 
   run: async (client, m, args) => {
-    let rawPath, fixedPath;
+    let filePath;
 
     try {
       if (!args.length) {
-        return m.reply("❌ Ingresa un link o el nombre del video");
+        return client.reply(
+          m.chat,
+          "❌ Ingresa un enlace o nombre del video de YouTube.",
+          m,
+          global.channelInfo
+        );
       }
 
-      await m.reply("⏳ Buscando video...");
+      await client.reply(
+        m.chat,
+        `⏳ Buscando tu video...\n🤖 ${BOT_NAME}`,
+        m,
+        global.channelInfo
+      );
 
-      let videoUrl;
+      let videoUrl = args.join(" ");
+      let title = "video";
 
-      // 🔍 SI NO ES LINK → BUSCAR
-      if (!args[0].includes("youtube.com") && !args[0].includes("youtu.be")) {
-        const search = await yts(args.join(" "));
-        if (!search.videos.length) {
-          return m.reply("❌ No se encontraron resultados");
+      // 🔍 Si no es link → buscar con yt-search
+      if (!videoUrl.startsWith("http")) {
+        const search = await yts(videoUrl);
+        if (!search.videos?.length) {
+          return client.reply(
+            m.chat,
+            "❌ No se encontraron resultados.",
+            m,
+            global.channelInfo
+          );
         }
         videoUrl = search.videos[0].url;
-      } else {
-        videoUrl = args[0];
+        title = search.videos[0].title || title;
       }
 
-      await m.reply("⬇️ Descargando video...");
+      await client.reply(
+        m.chat,
+        "⬇️ Descargando video...",
+        m,
+        global.channelInfo
+      );
 
-      const apiRes = await axios.get(API_URL, {
+      const res = await axios.get(API_URL, {
         params: { url: videoUrl },
         timeout: 120000
       });
 
-      const result = apiRes.data?.result;
-      if (!result?.url) throw "Respuesta inválida";
+      const data = res.data?.result;
+      if (!data?.url) throw new Error("Respuesta inválida");
 
-      const info = result.info || {};
-      const channel = info.channel || "Desconocido";
-      const quality = result.quality || "N/A";
+      const safeTitle = (data.info?.title || title)
+        .replace(/[\\/:*?"<>|]/g, "")
+        .trim()
+        .slice(0, 60);
 
-      const tmpDir = path.join(__dirname, "../../tmp");
-      fs.mkdirSync(tmpDir, { recursive: true });
+      const tmpPath = path.join(__dirname, "../../tmp");
+      fs.mkdirSync(tmpPath, { recursive: true });
 
-      rawPath = path.join(tmpDir, "raw.mp4");
-      fixedPath = path.join(tmpDir, "fixed.mp4");
-
-      const videoRes = await axios.get(result.url, {
+      const videoRes = await axios.get(data.url, {
         responseType: "arraybuffer",
-        timeout: 300000,
-        maxBodyLength: Infinity,
-        maxContentLength: Infinity,
-        headers: {
-          "User-Agent": "Mozilla/5.0"
-        }
+        timeout: 300000
       });
 
-      fs.writeFileSync(rawPath, Buffer.from(videoRes.data));
-
-      // 🔧 FIX WhatsApp (no formato inusual)
-      await new Promise((resolve, reject) => {
-        exec(
-          `ffmpeg -y -i "${rawPath}" -movflags faststart -c copy "${fixedPath}"`,
-          (err) => (err ? reject(err) : resolve())
-        );
-      });
-
-      const caption =
-`🎬 *YouTube Video*
-📡 Canal: ${channel}
-📺 Calidad: ${quality}p
-🤖 SonGokuBot`;
+      filePath = path.join(tmpPath, `${Date.now()}.mp4`);
+      fs.writeFileSync(filePath, videoRes.data);
 
       await client.sendMessage(
         m.chat,
         {
-          video: fs.readFileSync(fixedPath),
+          video: fs.readFileSync(filePath),
           mimetype: "video/mp4",
-          caption
+          fileName: `${safeTitle}.mp4`,
+          caption: `🎬 ${safeTitle}\n🤖 ${BOT_NAME}`
         },
-        { quoted: m }
+        { quoted: m, ...global.channelInfo }
       );
 
-    } catch (e) {
-      console.error(e);
-      await m.reply("❌ Error al procesar el video");
+    } catch (err) {
+      console.error(err);
+      await client.reply(
+        m.chat,
+        "❌ Error al descargar o enviar el video.",
+        m,
+        global.channelInfo
+      );
     } finally {
-      [rawPath, fixedPath].forEach(f => {
-        if (f && fs.existsSync(f)) fs.unlinkSync(f);
-      });
+      if (filePath && fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+      }
     }
   }
 };
