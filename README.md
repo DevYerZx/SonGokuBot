@@ -31,16 +31,11 @@ Gracias a [AzamiJs](https://github.com/AzamiJs).
 </div>
 
 ---
-
-Inspirado en la fuerza y evolución de **Son Goku** 🐲⚡
-
 ---
 
 🧰 𝐑𝐞𝐪𝐮𝐢𝐬𝐢𝐭𝐨𝐬
 
 🟢 **Node.js v18+**  
-🟢 **Git**  
-
 <p align="center">  
   <img src="https://img.shields.io/badge/Node.js-18+-green?logo=node.js"/>  
   <img src="https://img.shields.io/badge/Git-required-red?logo=git"/>  
