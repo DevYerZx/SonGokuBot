@@ -6,9 +6,9 @@ const BOT_NAME = "SonGokuBot";
 const API_URL = "https://nexevo-api.vercel.app/download/y2";
 
 module.exports = {
-  command: ["ytmp4", "ytvideo", "ytnexevo"],
+  command: ["ytnexevo", "ytmp4"],
   categoria: "descarga",
-  description: "Descarga video de YouTube",
+  description: "Descarga video de YouTube (documento)",
 
   run: async (client, m, args) => {
     let filePath;
@@ -23,25 +23,22 @@ module.exports = {
         );
       }
 
-      const videoUrl = args[0];
+      const ytUrl = args[0];
 
       await client.reply(
         m.chat,
-        `⏳ Descargando video...\n🤖 ${BOT_NAME}`,
+        "⏳ Descargando video...\n🤖 SonGokuBot",
         m,
         global.channelInfo
       );
 
       const apiRes = await axios.get(API_URL, {
-        params: { url: videoUrl },
+        params: { url: ytUrl },
         timeout: 120000
       });
 
       const result = apiRes.data?.result;
-      if (!result?.url) throw new Error("Respuesta inválida");
-
-      const title = result.info?.title || "YouTube Video";
-      const safeTitle = title.replace(/[\\/:*?"<>|]/g, "").slice(0, 60);
+      if (!result?.url) throw new Error("URL inválida");
 
       const tmpDir = path.join(__dirname, "../../tmp");
       fs.mkdirSync(tmpDir, { recursive: true });
@@ -51,8 +48,8 @@ module.exports = {
       const videoRes = await axios.get(result.url, {
         responseType: "arraybuffer",
         timeout: 300000,
-        maxContentLength: Infinity,
         maxBodyLength: Infinity,
+        maxContentLength: Infinity,
         headers: {
           "User-Agent": "Mozilla/5.0"
         }
@@ -63,17 +60,18 @@ module.exports = {
       await client.sendMessage(
         m.chat,
         {
-          video: fs.readFileSync(filePath),
+          document: fs.readFileSync(filePath),
           mimetype: "video/mp4",
-          caption: `🎬 ${safeTitle}\n📺 ${result.quality}p\n🤖 ${BOT_NAME}`
+          fileName: "YouTube-Video.mp4",
+          caption: `🎬 Video YouTube\n📺 ${result.quality}p\n🤖 ${BOT_NAME}`
         },
         { quoted: m, ...global.channelInfo }
       );
 
-    } catch (err) {
+    } catch (e) {
       await client.reply(
         m.chat,
-        "❌ Error al descargar o enviar el video.",
+        "❌ Error al descargar el video.",
         m,
         global.channelInfo
       );
