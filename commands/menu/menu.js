@@ -52,7 +52,7 @@ module.exports = {
         } catch {}
       }
 
-      // 🔹 BEFORE (DISEÑO EDITADO)
+      // 🔹 DISEÑO DEL MENÚ
       let menuText = `
 ☞︎︎︎SonGokuBO☜︎︎︎
 ⸼݇҉ֻ᠂⃟ꕥ─➤Github: https://github.com/DevYerZx/SonGokuBot 
@@ -82,26 +82,16 @@ module.exports = {
         menuText += `└─⋅☆·̇·̣̇̇·̣̣̇·̣̇̇·̇⸼݇҉ֻ᠂⃟୨୧┈┈┈୨୧⸼݇҉ֻ᠂⃟·̇·̣̇̇·̣̣̇·̣̇̇☆─⋅┘\n`;
       }
 
-      // 🔹 BOTONES
+      // 🔹 BOTÓN ÚNICO
       const buttons = [
         {
           buttonId: `${usedPrefix}hosting`,
           buttonText: { displayText: "🤖 TENER BOT / HOSTING" },
           type: 1
-        },
-        {
-          buttonId: `${usedPrefix}menu_peliculas`,
-          buttonText: { displayText: "🎬 MENÚ PELÍCULAS" },
-          type: 1
-        },
-        {
-          buttonId: `${usedPrefix}getbot`,
-          buttonText: { displayText: "ℹ️ INFO BOT" },
-          type: 1
         }
       ];
 
-      // 🔹 ENVIAR
+      // 🔹 ENVIAR MENÚ
       await client.sendMessage(
         m.chat,
         {
