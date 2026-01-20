@@ -7,7 +7,7 @@ const BOT_NAME = "SonGokuBot";
 const API_URL = "https://nexevo-api.vercel.app/download/y";
 
 module.exports = {
-  command: ["mp3", "ytaudio"],
+  command: ["ytmp3"],
   categoria: "descarga",
   description: "Descarga el audio de YouTube en MP3",
 
