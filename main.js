@@ -4,7 +4,6 @@ const path = require("path");
 const moment = require("moment");
 const chalk = require("chalk");
 const gradient = require("gradient-string");
-
 const seeCommands = require("./lib/system/commandLoader");
 const initDB = require("./lib/system/initDB");
 const antilink = require("./commands/antilink");
@@ -13,79 +12,146 @@ const { resolveLidToRealJid } = require("./lib/utils");
 seeCommands();
 
 module.exports = async (client, m) => {
-  try {
-    let body = "";
+  let body = "";
 
-    if (m.message) {
-      body =
-        m.message.conversation ||
-        m.message.extendedTextMessage?.text ||
-        m.message.imageMessage?.caption ||
-        m.message.videoMessage?.caption ||
-        m.message.buttonsResponseMessage?.selectedButtonId ||
-        m.message.listResponseMessage?.singleSelectReply?.selectedRowId ||
-        m.message.templateButtonReplyMessage?.selectedId ||
-        "";
+  if (m.message) {
+    if (m.message.conversation) body = m.message.conversation;
+    else if (m.message.extendedTextMessage?.text)
+      body = m.message.extendedTextMessage.text;
+    else if (m.message.imageMessage?.caption)
+      body = m.message.imageMessage.caption;
+    else if (m.message.videoMessage?.caption)
+      body = m.message.videoMessage.caption;
+    else if (m.message.buttonsResponseMessage?.selectedButtonId)
+      body = m.message.buttonsResponseMessage.selectedButtonId;
+    else if (m.message.listResponseMessage?.singleSelectReply?.selectedRowId)
+      body = m.message.listResponseMessage.singleSelectReply.selectedRowId;
+    else if (m.message.templateButtonReplyMessage?.selectedId)
+      body = m.message.templateButtonReplyMessage.selectedId;
+  }
+
+  initDB(m);
+  antilink(client, m);
+
+  const prefa = [".", "!", "#", "/"];
+  const prefix = prefa.find((p) => body.startsWith(p));
+  if (!prefix) return;
+
+  const from = m.key.remoteJid;
+  const args = body.trim().split(/ +/).slice(1);
+  const text = args.join(" ");
+  const botJid = client.user.id.split(":")[0] + "@s.whatsapp.net";
+
+  const command = body
+    .slice(prefix.length)
+    .trim()
+    .split(/\s+/)[0]
+    .toLowerCase();
+
+  const pushname = m.pushName || "Sin nombre";
+  const sender = m.isGroup
+    ? m.key.participant || m.participant
+    : m.key.remoteJid;
+
+  let groupMetadata = null;
+  let groupAdmins = [];
+  let resolvedAdmins = [];
+  let groupName = "";
+
+  /* ================== FIX ANTI 403 + ANTI CRASH ================== */
+  if (m.isGroup) {
+    try {
+      groupMetadata = await client.groupMetadata(m.chat);
+    } catch (e) {
+      groupMetadata = null;
     }
 
-    initDB(m);
+    if (groupMetadata) {
+      groupName = groupMetadata.subject || "";
 
-    if (m.isGroup) {
-      try {
-        await antilink(client, m);
-      } catch {}
+      groupAdmins = groupMetadata.participants.filter(
+        (p) => p.admin === "admin" || p.admin === "superadmin",
+      );
+
+      resolvedAdmins = await Promise.all(
+        groupAdmins.map(async (adm) => {
+          let realJid = adm.jid;
+          try {
+            realJid = await resolveLidToRealJid(adm.jid, client, m.chat);
+          } catch (e) {}
+          return { ...adm, jid: realJid };
+        }),
+      );
     }
+  }
 
-    const prefix = [".", "!", "#", "/"].find((p) => body.startsWith(p));
-    if (!prefix) return;
+  const isBotAdmins =
+    m.isGroup && resolvedAdmins.length
+      ? resolvedAdmins.some((p) => p.jid === botJid)
+      : false;
 
-    const command = body.slice(prefix.length).trim().split(/\s+/)[0].toLowerCase();
-    const args = body.trim().split(/ +/).slice(1);
-    const text = args.join(" ");
+  const isAdmins =
+    m.isGroup && resolvedAdmins.length
+      ? resolvedAdmins.some((p) => p.jid === m.sender)
+      : false;
 
-    const sender = m.sender;
-    const from = m.chat;
+  /* ================== LOG ================== */
+  const h = chalk.bold.blue("************************************");
+  const v = chalk.bold.white("*");
 
-    let isAdmins = false;
-    let isBotAdmins = false;
+  const date = chalk.bold.yellow(
+    `\n${v} Fecha: ${chalk.whiteBright(moment().format("DD/MM/YY HH:mm:ss"))}`,
+  );
 
-    if (m.isGroup) {
-      try {
-        const meta = await client.groupMetadata(from);
-        const admins = meta.participants.filter((p) => p.admin);
-        const resolved = await Promise.all(
-          admins.map(async (a) => ({
-            ...a,
-            jid: await resolveLidToRealJid(a.id || a.jid, client),
-          })),
-        );
+  const userPrint = chalk.bold.blueBright(
+    `\n${v} Usuario: ${chalk.whiteBright(pushname)}`,
+  );
 
-        isAdmins = resolved.some((a) => a.jid === sender);
-        isBotAdmins = resolved.some(
-          (a) => a.jid === client.user.id.split(":")[0] + "@s.whatsapp.net",
-        );
-      } catch {}
-    }
+  const senderPrint = chalk.bold.magentaBright(
+    `\n${v} Remitente: ${gradient("deepskyblue", "darkorchid")(sender)}`,
+  );
 
-    /* ================== EJECUCIÓN ================== */
-    if (!global.comandos.has(command)) return;
+  const groupPrint = m.isGroup
+    ? chalk.bold.cyanBright(
+        `\n${v} Grupo: ${chalk.greenBright(groupName)}\n${v} ID: ${gradient("violet", "midnightblue")(from)}\n`,
+      )
+    : chalk.bold.greenBright(`\n${v} Chat privado\n`);
 
-    const cmd = global.comandos.get(command);
+  console.log(`\n${h}${date}${userPrint}${senderPrint}${groupPrint}${h}`);
 
-    if (cmd.isOwner && !global.owner.map((o) => o + "@s.whatsapp.net").includes(sender))
+  /* ================== EJECUCIÓN DE COMANDOS ================== */
+  if (global.comandos.has(command)) {
+    const cmdData = global.comandos.get(command);
+    if (!cmdData) return;
+
+    if (
+      cmdData.isOwner &&
+      !global.owner.map((num) => num + "@s.whatsapp.net").includes(m.sender)
+    )
       return m.reply(mess.owner);
 
-    if (cmd.isGroup && !m.isGroup) return m.reply(mess.group);
-    if (cmd.isAdmin && !isAdmins) return m.reply(mess.admin);
-    if (cmd.isBotAdmin && !isBotAdmins) return m.reply(mess.botAdmin);
+    if (cmdData.isReg && !db.data.users[m.sender]?.registered)
+      return m.reply(mess.registered);
 
-    if (!db.data.users[sender]) {
-      db.data.users[sender] = { registered: false };
+    if (cmdData.isGroup && !m.isGroup) return m.reply(mess.group);
+    if (cmdData.isAdmin && !isAdmins) return m.reply(mess.admin);
+    if (cmdData.isBotAdmin && !isBotAdmins) return m.reply(mess.botAdmin);
+    if (cmdData.isPrivate && m.isGroup) return m.reply(mess.private);
+
+    try {
+      await cmdData.run(client, m, args, { text });
+    } catch (error) {
+      console.error(
+        chalk.red(`Error ejecutando comando ${command}:`),
+        error,
+      );
+
+      await client.sendMessage(
+        m.chat,
+        { text: "❌ Error al ejecutar el comando" },
+        { quoted: m, ...global.channelInfo },
+      );
     }
-
-    await cmd.run(client, m, args, { text });
-  } catch (e) {
-    console.log(chalk.red("ERROR EN MAIN:"), e);
   }
 };
 
@@ -93,7 +159,11 @@ module.exports = async (client, m) => {
 const mainFile = require.resolve(__filename);
 fs.watchFile(mainFile, () => {
   fs.unwatchFile(mainFile);
-  console.log(chalk.yellow(`Recargando ${path.basename(__filename)}`));
+  console.log(
+    chalk.yellowBright(
+      `\nSe actualizó ${path.basename(__filename)}, recargando...`,
+    ),
+  );
   delete require.cache[mainFile];
   require(mainFile);
 });
