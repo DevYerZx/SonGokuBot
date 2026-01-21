@@ -5,9 +5,8 @@
  * Creado por: Carlos Alexis (Zam)
  * Año: 2025
  * Librería: Baileys
+ * Mejorado y estabilizado por DvYer
  * ================================
- * Mejorado por DvYer
- * (auto eliminación de archivos tmp)
  */
 
 require("./settings");
@@ -25,9 +24,20 @@ const pino = require("pino");
 const chalk = require("chalk");
 const fs = require("fs");
 const path = require("path");
+const readline = require("readline");
 const os = require("os");
 const { smsg } = require("./lib/message");
 const { Boom } = require("@hapi/boom");
+const { exec } = require("child_process");
+
+/* ================== PROTECCIÓN ANTI CRASH ================== */
+process.on("unhandledRejection", (err) => {
+  console.log("❌ PROMISE NO CAPTURADA:", err?.message || err);
+});
+
+process.on("uncaughtException", (err) => {
+  console.log("❌ EXCEPCIÓN NO CAPTURADA:", err?.message || err);
+});
 
 /* ================== SESIÓN ================== */
 const sessionDir = global.sessionName || "SonGokuBot_session";
@@ -36,90 +46,89 @@ if (!fs.existsSync(sessionDir)) {
   console.log("📁 Carpeta de sesión creada:", sessionDir);
 }
 
-/* ================== PROTECCIÓN GLOBAL ================== */
-process.on("unhandledRejection", (err) => {
-  console.log("❌ PROMISE NO CAPTURADA:", err);
-});
-
-process.on("uncaughtException", (err) => {
-  console.log("❌ EXCEPCIÓN NO CAPTURADA:", err);
-});
-
 /* ================== LOGS ================== */
-const log = {
-  info: (msg) => console.log(chalk.bgBlue.white.bold("INFO"), chalk.white(msg)),
-  success: (msg) =>
-    console.log(chalk.bgGreen.white.bold("SUCCESS"), chalk.greenBright(msg)),
-  warning: (msg) =>
-    console.log(chalk.bgYellowBright.red.bold("WARNING"), chalk.yellow(msg)),
-  error: (msg) =>
-    console.log(chalk.bgRed.white.bold("ERROR"), chalk.redBright(msg)),
+const print = (label, value) =>
+  console.log(
+    `${chalk.green.bold("║")} ${chalk.cyan.bold(label.padEnd(14))}${chalk.magenta.bold(":")} ${value}`,
+  );
+
+const question = (text) => {
+  const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout,
+  });
+  return new Promise((resolve) =>
+    rl.question(text, (ans) => {
+      rl.close();
+      resolve(ans.trim());
+    }),
+  );
 };
 
-/* ================== SYSTEM INFO (SAFE) ================== */
-const safeUser = (() => {
+const log = {
+  info: (m) => console.log(chalk.bgBlue.white(" INFO "), m),
+  success: (m) => console.log(chalk.bgGreen.white(" OK "), m),
+  warning: (m) => console.log(chalk.bgYellow.black(" WARN "), m),
+  error: (m) => console.log(chalk.bgRed.white(" ERROR "), m),
+};
+
+/* ================== SYSTEM INFO (SEGURO) ================== */
+const safeUser = () => {
   try {
     return os.userInfo().username;
   } catch {
     return "container";
   }
-})();
-
-const print = (label, value) =>
-  console.log(
-    `${chalk.green.bold("║")} ${chalk.cyan.bold(label.padEnd(16))}: ${value}`,
-  );
+};
 
 console.log(
   chalk.yellow.bold(
-    `╔═════[${safeUser}@${os.hostname()}]═════`,
+    `╔═════[${safeUser()}@${os.hostname()}]═════`,
   ),
 );
-print("OS", `${os.platform()} ${os.release()} ${os.arch()}`);
-print("Node.js", process.version);
+print("OS", `${os.platform()} ${os.release()}`);
+print("CPU", os.cpus()[0]?.model || "unknown");
+print("RAM", `${(os.freemem() / 1024 / 1024).toFixed(0)} MB libres`);
+print("Node", process.version);
 print("Baileys", "WhiskeySockets");
-console.log(chalk.yellow.bold("╚" + "═".repeat(40)));
-
-/* ================== CONTROL DE ARRANQUE ================== */
-let isStarting = false;
+console.log(chalk.yellow.bold("╚" + "═".repeat(36)));
 
 /* ================== START BOT ================== */
 async function startBot() {
-  if (isStarting) return;
-  isStarting = true;
-
   const { state, saveCreds } = await useMultiFileAuthState(sessionDir);
   const { version } = await fetchLatestBaileysVersion();
 
   const client = makeWASocket({
     version,
-    logger: pino({ level: "silent" }),
     auth: state,
-    browser: ["Linux", "Opera"],
+    logger: pino({ level: "silent" }),
+    browser: ["Ubuntu", "Chrome", "120"],
   });
 
   /* ================== AUTH ================== */
   if (!client.authState.creds.registered) {
-    const phoneNumber = process.env.PAIRING_NUMBER;
+    let phoneNumber = process.env.PAIRING_NUMBER;
 
     if (!phoneNumber) {
-      log.error("❌ Define la variable PAIRING_NUMBER en el panel");
-      log.error("Ejemplo: PAIRING_NUMBER=51999999999");
-      process.exit(1);
+      phoneNumber = await question(
+        "📱 Ingresa tu número (ej: 51999999999): ",
+      );
     }
 
     try {
-      const pairingCode = await client.requestPairingCode(
+      const pairing = await client.requestPairingCode(
         phoneNumber,
-        "SONGOKU1", // ← puedes cambiar este texto si deseas
+        "SONGOKU1",
       );
-
-      log.success(`📲 Código de emparejamiento: ${pairingCode}`);
-      log.info("WhatsApp → Dispositivos vinculados → Vincular dispositivo");
+      log.success(`Código de emparejamiento: ${pairing}`);
+      log.info("WhatsApp → Dispositivos vinculados → Vincular");
     } catch (err) {
-      log.error("❌ Error al emparejar");
+      log.error("Falló el emparejamiento");
       console.error(err);
-      isStarting = false;
+
+      exec(`rm -rf ${sessionDir}/*`);
+      log.warning("Reintentando en 5 segundos...");
+      setTimeout(startBot, 5000);
       return;
     }
   }
@@ -127,14 +136,17 @@ async function startBot() {
   await global.loadDatabase();
   log.success("Base de datos cargada");
 
+  /* ================== HELPERS ================== */
+  client.sendText = (jid, text, quoted = "", options = {}) =>
+    client.sendMessage(jid, { text, ...options }, { quoted });
+
   /* ================== LIMPIEZA TMP ================== */
   const tmpDir = path.join(__dirname, "tmp");
   setInterval(() => {
     try {
       if (!fs.existsSync(tmpDir)) return;
       for (const f of fs.readdirSync(tmpDir)) {
-        const p = path.join(tmpDir, f);
-        if (fs.statSync(p).isFile()) fs.unlinkSync(p);
+        fs.unlinkSync(path.join(tmpDir, f));
       }
     } catch {}
   }, 15 * 60 * 1000);
@@ -145,39 +157,39 @@ async function startBot() {
 
     if (connection === "open") {
       log.success("Conectado correctamente");
-      isStarting = false;
     }
 
     if (connection === "close") {
       const reason = new Boom(lastDisconnect?.error)?.output?.statusCode;
 
       if (
-        reason === DisconnectReason.connectionLost ||
         reason === DisconnectReason.connectionClosed ||
+        reason === DisconnectReason.connectionLost ||
         reason === DisconnectReason.restartRequired
       ) {
-        log.warning("🔄 Reconectando...");
-        isStarting = false;
+        log.warning("Reconectando...");
         startBot();
       }
 
       if (reason === DisconnectReason.loggedOut) {
-        log.error("❌ Sesión cerrada");
-        process.exit(1);
+        log.warning("Sesión cerrada, limpiando...");
+        exec(`rm -rf ${sessionDir}/*`);
+        setTimeout(startBot, 3000);
       }
     }
   });
 
-  /* ================== MESSAGES ================== */
+  /* ================== MENSAJES ================== */
   client.ev.on("messages.upsert", async ({ messages }) => {
     try {
       let m = messages[0];
       if (!m?.message) return;
       if (m.key.remoteJid === "status@broadcast") return;
+
       m = smsg(client, m);
-      require("./main")(client, m);
+      require("./main")(client, m, messages);
     } catch (e) {
-      console.log(e);
+      console.log("Error mensaje:", e);
     }
   });
 
@@ -185,7 +197,7 @@ async function startBot() {
     if (!jid) return jid;
     if (/:\d+@/gi.test(jid)) {
       const d = jidDecode(jid) || {};
-      return d.user && d.server ? d.user + "@" + d.server : jid;
+      return d.user && d.server ? `${d.user}@${d.server}` : jid;
     }
     return jid;
   };
@@ -194,4 +206,13 @@ async function startBot() {
 }
 
 startBot();
+
+/* ================== HOT RELOAD ================== */
+let file = require.resolve(__filename);
+fs.watchFile(file, () => {
+  fs.unwatchFile(file);
+  console.log(chalk.yellow("♻ index actualizado"));
+  delete require.cache[file];
+  require(file);
+});
 
