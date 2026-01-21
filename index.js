@@ -36,7 +36,7 @@ if (!fs.existsSync(sessionDir)) {
   console.log("📁 Carpeta de sesión creada:", sessionDir);
 }
 
-/* ================== PROTECCIÓN ================== */
+/* ================== PROTECCIÓN GLOBAL ================== */
 process.on("unhandledRejection", (err) => {
   console.log("❌ PROMISE NO CAPTURADA:", err);
 });
@@ -56,7 +56,15 @@ const log = {
     console.log(chalk.bgRed.white.bold("ERROR"), chalk.redBright(msg)),
 };
 
-/* ================== SYSTEM INFO ================== */
+/* ================== SYSTEM INFO (SAFE) ================== */
+const safeUser = (() => {
+  try {
+    return os.userInfo().username;
+  } catch {
+    return "container";
+  }
+})();
+
 const print = (label, value) =>
   console.log(
     `${chalk.green.bold("║")} ${chalk.cyan.bold(label.padEnd(16))}: ${value}`,
@@ -64,7 +72,7 @@ const print = (label, value) =>
 
 console.log(
   chalk.yellow.bold(
-    `╔═════[${os.userInfo().username}@${os.hostname()}]═════`,
+    `╔═════[${safeUser}@${os.hostname()}]═════`,
   ),
 );
 print("OS", `${os.platform()} ${os.release()} ${os.arch()}`);
@@ -95,16 +103,22 @@ async function startBot() {
     const phoneNumber = process.env.PAIRING_NUMBER;
 
     if (!phoneNumber) {
-      log.error("❌ Define PAIRING_NUMBER en el panel");
+      log.error("❌ Define la variable PAIRING_NUMBER en el panel");
+      log.error("Ejemplo: PAIRING_NUMBER=51999999999");
       process.exit(1);
     }
 
     try {
-      const code = await client.requestPairingCode(phoneNumber, "SONGOKU1");
-      log.success(`📲 Código de emparejamiento: ${code}`);
-    } catch (e) {
+      const pairingCode = await client.requestPairingCode(
+        phoneNumber,
+        "SONGOKU1", // ← puedes cambiar este texto si deseas
+      );
+
+      log.success(`📲 Código de emparejamiento: ${pairingCode}`);
+      log.info("WhatsApp → Dispositivos vinculados → Vincular dispositivo");
+    } catch (err) {
       log.error("❌ Error al emparejar");
-      console.error(e);
+      console.error(err);
       isStarting = false;
       return;
     }
@@ -113,14 +127,16 @@ async function startBot() {
   await global.loadDatabase();
   log.success("Base de datos cargada");
 
-  /* ================== TMP CLEAN ================== */
+  /* ================== LIMPIEZA TMP ================== */
   const tmpDir = path.join(__dirname, "tmp");
   setInterval(() => {
-    if (!fs.existsSync(tmpDir)) return;
-    for (const f of fs.readdirSync(tmpDir)) {
-      const p = path.join(tmpDir, f);
-      if (fs.statSync(p).isFile()) fs.unlinkSync(p);
-    }
+    try {
+      if (!fs.existsSync(tmpDir)) return;
+      for (const f of fs.readdirSync(tmpDir)) {
+        const p = path.join(tmpDir, f);
+        if (fs.statSync(p).isFile()) fs.unlinkSync(p);
+      }
+    } catch {}
   }, 15 * 60 * 1000);
 
   /* ================== CONNECTION ================== */
