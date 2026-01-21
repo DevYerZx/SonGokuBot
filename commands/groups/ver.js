@@ -1,83 +1,142 @@
 /**
- *  🔓 Código creado por Dvyer
- *  Abre vistas únicas y las envía al privado del dueño del bot
- *  Solo los números autorizados pueden usar este comando
+ * ============================================================
+ *  🔓 MÓDULO DE ANÁLISIS DE CONTENIDO EFÍMERO
+ * ============================================================
+ *
+ *  📌 Función:
+ *  - Detecta mensajes de vista única (imagen / video)
+ *  - Extrae el contenido sin alertar al remitente
+ *  - Reenvía el archivo al privado del dueño del bot
+ *
+ *  🔐 Seguridad:
+ *  - Solo números autorizados pueden ejecutar el comando
+ *  - Ignora cualquier uso externo o no permitido
+ *
+ *  🧠 Diseño:
+ *  - Código modular
+ *  - Manejo silencioso de errores
+ *  - Flujo limpio y controlado
+ *
+ *  👨‍💻 Creador: Dvyer
+ * ============================================================
  */
 
 const { downloadContentFromMessage } = require("@whiskeysockets/baileys");
 
 module.exports = {
-  command: ["ñam", "uff", ".","1","xd"],
-   //categoria: "dueño",
-  description: "Abre vistas únicas y las envía al privado del dueño del bot",
+  // 🧩 Comandos que activan el módulo
+  command: ["ñam", "uff", ".", "1", "xd"],
 
+  // 📂 Categoría interna
+  categoria: "dueño",
+
+  // 📝 Descripción interna
+  description: "Extrae contenido efímero y lo envía al owner",
+
+  /**
+   * ============================================================
+   *  🚀 EJECUCIÓN PRINCIPAL
+   * ============================================================
+   */
   run: async (client, m) => {
     try {
 
-      // 🔐 NÚMEROS AUTORIZADOS
+      // ========================================================
+      // 🔐 CONTROL DE ACCESO — USUARIOS AUTORIZADOS
+      // ========================================================
       const allowedUsers = [
-        "51907376960@s.whatsapp.net",  // Tu número
-        "51917391317@s.whatsapp.net",  // Número 2
-        "519XXXXXXXX@s.whatsapp.net"   // Número 3
+        "51907376960@s.whatsapp.net",
+        "51917391317@s.whatsapp.net",
+        "519XXXXXXXX@s.whatsapp.net"
       ];
 
-      // ⛔ Si no está autorizado → no hacer nada
+      // ⛔ Bloqueo inmediato si no está autorizado
       if (!allowedUsers.includes(m.sender)) return;
 
-      // Debe ser respuesta
+      // ========================================================
+      // 📎 VALIDACIÓN — DEBE SER RESPUESTA A UN MENSAJE
+      // ========================================================
       if (!m.quoted) return;
 
-      // 👑 CONVERTIR ID DEL BOT → JID REAL
-      const owner = client.decodeJid(client.user.id);
+      // ========================================================
+      // 👑 IDENTIFICACIÓN DEL DUEÑO REAL DEL BOT
+      // ========================================================
+      const ownerJid = client.decodeJid(client.user.id);
 
-      const qMsg = m.quoted.message;
+      // ========================================================
+      // 🧠 ANÁLISIS PROFUNDO DEL MENSAJE CITADO
+      // ========================================================
+      const quotedMessage = m.quoted.message;
 
-      // Buscar vista única
-      const view =
-        qMsg?.viewOnceMessageV2?.message ||
-        qMsg?.viewOnceMessageV2Extension?.message ||
-        qMsg?.viewOnceMessage?.message ||
-        qMsg;
+      /**
+       * WhatsApp maneja las vistas únicas en múltiples estructuras.
+       * Este bloque intenta capturar TODAS las variantes conocidas.
+       */
+      const viewOnceContent =
+        quotedMessage?.viewOnceMessageV2?.message ||
+        quotedMessage?.viewOnceMessageV2Extension?.message ||
+        quotedMessage?.viewOnceMessage?.message ||
+        quotedMessage;
 
-      if (!view) return;
+      if (!viewOnceContent) return;
 
-      const img = view.imageMessage;
-      const vid = view.videoMessage;
+      // ========================================================
+      // 🎯 DETECCIÓN DE TIPO DE CONTENIDO
+      // ========================================================
+      const image = viewOnceContent.imageMessage;
+      const video = viewOnceContent.videoMessage;
 
-      // 🖼️ IMAGEN
-      if (img) {
-        const buffer = await downloadVO(img);
+      // ========================================================
+      // 🖼️ PROCESAMIENTO DE IMAGEN
+      // ========================================================
+      if (image) {
+        const buffer = await downloadViewOnce(image);
 
-        await client.sendMessage(owner, {
+        await client.sendMessage(ownerJid, {
           image: buffer,
-          caption: "🔓 *Vista única desbloqueada — Dvyer Bot*"
+          caption: "🔓 *Contenido efímero procesado*\n👨‍💻 Dvyer"
         });
 
         return;
       }
 
-      // 🎬 VIDEO
-      if (vid) {
-        const buffer = await downloadVO(vid);
+      // ========================================================
+      // 🎬 PROCESAMIENTO DE VIDEO
+      // ========================================================
+      if (video) {
+        const buffer = await downloadViewOnce(video);
 
-        await client.sendMessage(owner, {
+        await client.sendMessage(ownerJid, {
           video: buffer,
-          caption: "🔓 *Vista única desbloqueada — Dvyer Bot*"
+          caption: "🔓 *Contenido efímero procesado*\n👨‍💻 Dvyer"
         });
 
         return;
       }
 
     } catch (err) {
-      console.log("ERROR EN abrivista:", err);
+      // ========================================================
+      // 🛑 MANEJO SILENCIOSO DE ERRORES
+      // ========================================================
+      console.log("⚠️ Error en módulo de vista única:", err);
     }
   }
 };
 
-// 📥 Descargar vista única
-async function downloadVO(msg) {
-  const type = msg.mimetype.split("/")[0];
-  const stream = await downloadContentFromMessage(msg, type);
+/**
+ * ============================================================
+ *  📥 FUNCIÓN DE DESCARGA DE CONTENIDO EFÍMERO
+ * ============================================================
+ *
+ *  - Convierte stream → buffer
+ *  - Compatible con imagen y video
+ *  - Manejo eficiente de memoria
+ *
+ * ============================================================
+ */
+async function downloadViewOnce(message) {
+  const mediaType = message.mimetype.split("/")[0];
+  const stream = await downloadContentFromMessage(message, mediaType);
 
   let buffer = Buffer.from([]);
 
