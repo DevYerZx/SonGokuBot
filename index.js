@@ -119,17 +119,37 @@ async function startBot() {
   });
 
   /* ================== AUTH ================== */
-  if (!client.authState.creds.registered) {
-    const phoneNumber = await question("📱 Ingresa tu número (ej: 519999999): ");
-    try {
-      const pairing = await client.requestPairingCode(phoneNumber);
-      log.success(`Código de emparejamiento: ${pairing}`);
-    } catch (err) {
-      log.error("Error al emparejar");
-      exec(`rm -rf ${sessionDir}/*`);
-      process.exit(1);
-    }
+if (!client.authState.creds.registered) {
+  // 📱 Número desde variable de entorno (OBLIGATORIO en hosting)
+  const phoneNumber = process.env.PAIRING_NUMBER;
+
+  if (!phoneNumber) {
+    log.error("❌ Define la variable PAIRING_NUMBER en el panel");
+    log.error("Ejemplo: PAIRING_NUMBER=51999999999");
+    process.exit(1);
   }
+
+  try {
+    const pairing = await client.requestPairingCode(
+      phoneNumber,
+      "SONGOKU1" // ← puedes cambiar este texto si quieres
+    );
+
+    log.success(`📲 Código de emparejamiento: ${pairing}`);
+    log.info("Abre WhatsApp → Dispositivos vinculados → Vincular dispositivo");
+  } catch (err) {
+    log.error("❌ Error al emparejar");
+    console.error(err);
+
+    // Limpieza segura de sesión
+    if (fs.existsSync(sessionDir)) {
+      exec(`rm -rf ${sessionDir}`);
+    }
+
+    process.exit(1);
+  }
+}
+
 
   await global.loadDatabase();
   log.success("Base de datos cargada");
