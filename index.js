@@ -1,20 +1,11 @@
 /**
  * ================================
- *        SonGokuBot - Stable
+ *        Mini Lurus - WaBot
  * ================================
- * Mejorado por: DvYer
- * Base: Mini Lurus
- * Librería: Baileys
+ * Mejorado y estabilizado por: DvYer
+ * Librería: Baileys (Actual)
  * ================================
  */
-
-process.on("unhandledRejection", err => {
-  console.error("❌ PROMESA NO MANEJADA:", err);
-});
-
-process.on("uncaughtException", err => {
-  console.error("❌ EXCEPCIÓN NO CAPTURADA:", err);
-});
 
 require("./settings");
 require("./lib/database");
@@ -37,46 +28,62 @@ const { smsg } = require("./lib/message");
 const { Boom } = require("@hapi/boom");
 const { exec } = require("child_process");
 
-/* ================== LOG ================== */
+/* ================== PROTECCIÓN GLOBAL ================== */
+process.on("unhandledRejection", (reason) => {
+  console.log(chalk.red("❌ PROMISE NO CAPTURADA:"), reason);
+});
+
+process.on("uncaughtException", (err) => {
+  console.log(chalk.red("❌ ERROR NO CAPTURADO:"), err);
+});
+
+/* ================== LOGS ================== */
 const log = {
-  info: m => console.log(chalk.blue("[INFO]"), m),
-  success: m => console.log(chalk.green("[SUCCESS]"), m),
-  error: m => console.log(chalk.red("[ERROR]"), m),
+  info: (msg) => console.log(chalk.bgBlue.white(" INFO "), msg),
+  success: (msg) => console.log(chalk.bgGreen.white(" OK "), msg),
+  warning: (msg) => console.log(chalk.bgYellow.black(" WARN "), msg),
+  error: (msg) => console.log(chalk.bgRed.white(" ERR "), msg),
 };
 
-const question = text =>
-  new Promise(resolve => {
-    const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
-    rl.question(text, ans => {
-      rl.close();
-      resolve(ans);
-    });
-  });
+const question = (text) => {
+  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+  return new Promise((resolve) => rl.question(text, resolve));
+};
 
-/* ================== START ================== */
+/* ================== SYSTEM INFO ================== */
+console.log(chalk.yellow(`Node: ${process.version}`));
+console.log(chalk.yellow(`OS: ${os.platform()} ${os.arch()}`));
+
+let client;
+let isStarting = false;
+
+/* ================== START BOT ================== */
 async function startBot() {
+  if (isStarting) return;
+  isStarting = true;
+
   try {
     const { state, saveCreds } = await useMultiFileAuthState(global.sessionName);
     const { version } = await fetchLatestBaileysVersion();
 
-    const client = makeWASocket({
+    client = makeWASocket({
       version,
-      auth: state,
       logger: pino({ level: "silent" }),
-      browser: ["SonGokuBot", "Chrome", "1.0.0"],
+      auth: state,
+      browser: ["Linux", "Chrome"],
     });
 
-    /* ===== AUTH ===== */
+    /* ================== AUTH ================== */
     if (!client.authState.creds.registered) {
-      const phone = await question("📱 Número (ej: 519999999): ");
-      const code = await client.requestPairingCode(phone);
-      log.success("Código: " + code);
+      const phoneNumber = await question("📱 Ingresa tu número (ej: 519999999): ");
+      const pairing = await client.requestPairingCode(phoneNumber, "SONGOKU1");
+      log.success(`Código de emparejamiento: ${pairing}`);
     }
 
     await global.loadDatabase();
     log.success("Base de datos cargada");
 
-    client.decodeJid = jid => {
+    client.decodeJid = (jid) => {
       if (!jid) return jid;
       if (/:\d+@/gi.test(jid)) {
         const decode = jidDecode(jid) || {};
@@ -85,62 +92,63 @@ async function startBot() {
       return jid;
     };
 
-    /* ===== CONNECTION ===== */
-    client.ev.on("connection.update", ({ connection, lastDisconnect }) => {
+    /* ================== CONNECTION ================== */
+    client.ev.on("connection.update", (update) => {
+      const { connection, lastDisconnect } = update;
+
       if (connection === "close") {
-        const reason = new Boom(lastDisconnect?.error)?.output?.statusCode;
+        const reason = new Boom(lastDisconnect?.error)?.output.statusCode;
 
         if (
           reason === DisconnectReason.connectionLost ||
+          reason === DisconnectReason.connectionClosed ||
           reason === DisconnectReason.restartRequired
         ) {
-          log.info("Reconectando...");
+          log.warning("Reconectando...");
+          isStarting = false;
           startBot();
-        }
-
-        if (reason === DisconnectReason.loggedOut) {
-          exec(`rm -rf ${global.sessionName}`);
+        } else if (reason === DisconnectReason.loggedOut) {
+          log.error("Sesión cerrada");
+          exec("rm -rf ./*session*");
           process.exit(1);
         }
       }
 
-      if (connection === "open") log.success("Conectado correctamente");
+      if (connection === "open") {
+        log.success("Bot conectado correctamente");
+      }
     });
 
-    /* ===== MESSAGES ===== */
+    /* ================== MENSAJES ================== */
     client.ev.on("messages.upsert", async ({ messages }) => {
       try {
-        const m = messages[0];
-        if (!m?.message) return;
+        let m = messages[0];
+        if (!m.message) return;
         if (m.key.remoteJid === "status@broadcast") return;
 
-        const msg = smsg(client, m);
-        require("./main")(client, msg);
+        m = smsg(client, m);
+
+        await require("./main")(client, m);
       } catch (e) {
-        console.error("Error en mensaje:", e);
+        console.log(chalk.red("Error en mensaje:"), e);
       }
     });
 
     client.ev.on("creds.update", saveCreds);
-
-    /* ===== LIMPIEZA TMP (SIN SPAM) ===== */
-    const tmp = path.join(__dirname, "tmp");
-
-    setInterval(() => {
-      try {
-        if (!fs.existsSync(tmp)) return;
-        fs.readdirSync(tmp).forEach(f => {
-          const p = path.join(tmp, f);
-          if (fs.statSync(p).isFile()) fs.unlinkSync(p);
-        });
-      } catch {}
-    }, 30 * 60 * 1000);
-
-  } catch (err) {
-    console.error("FATAL START ERROR:", err);
-    process.exit(1);
+  } catch (e) {
+    log.error("Error crítico en startBot");
+    console.log(e);
+    isStarting = false;
   }
 }
 
 startBot();
 
+/* ================== HOT RELOAD ================== */
+const file = require.resolve(__filename);
+fs.watchFile(file, () => {
+  fs.unwatchFile(file);
+  console.log(chalk.yellowBright(`Actualizado ${__filename}`));
+  delete require.cache[file];
+  require(file);
+});
