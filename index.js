@@ -1,19 +1,24 @@
 /**
  * ================================
- *        Mini Lurus - WaBot
+ *        SonGokuBot - Stable
  * ================================
- * Creado por: Carlos Alexis (Zam)
- * Año: 2025
+ * Mejorado por: DvYer
+ * Base: Mini Lurus
  * Librería: Baileys
- * Nota: No borres los créditos, ni te pongas
- * créditos que no son tuyos, respeta el trabajo.
  * ================================
- **/
-/**
-**mejorando DvYer (autoEliminacion de archivos basuras como tmp**/
+ */
+
+process.on("unhandledRejection", err => {
+  console.error("❌ PROMESA NO MANEJADA:", err);
+});
+
+process.on("uncaughtException", err => {
+  console.error("❌ EXCEPCIÓN NO CAPTURADA:", err);
+});
 
 require("./settings");
 require("./lib/database");
+
 const {
   default: makeWASocket,
   useMultiFileAuthState,
@@ -21,6 +26,7 @@ const {
   jidDecode,
   DisconnectReason,
 } = require("@whiskeysockets/baileys");
+
 const pino = require("pino");
 const chalk = require("chalk");
 const fs = require("fs");
@@ -28,184 +34,113 @@ const path = require("path");
 const readline = require("readline");
 const os = require("os");
 const { smsg } = require("./lib/message");
-const { app, server } = require("./lib/server");
 const { Boom } = require("@hapi/boom");
 const { exec } = require("child_process");
 
-/* ================== LOGS ================== */
-const print = (label, value) =>
-  console.log(
-    `${chalk.green.bold("║")} ${chalk.cyan.bold(label.padEnd(16))}${chalk.magenta.bold(":")} ${value}`,
-  );
-
-const question = (text) => {
-  const rl = readline.createInterface({
-    input: process.stdin,
-    output: process.stdout,
-  });
-  return new Promise((resolve) => rl.question(text, resolve));
-};
-
+/* ================== LOG ================== */
 const log = {
-  info: (msg) => console.log(chalk.bgBlue.white.bold("INFO"), chalk.white(msg)),
-  success: (msg) =>
-    console.log(chalk.bgGreen.white.bold("SUCCESS"), chalk.greenBright(msg)),
-  warning: (msg) =>
-    console.log(chalk.bgYellowBright.red.bold("WARNING"), chalk.yellow(msg)),
-  error: (msg) =>
-    console.log(chalk.bgRed.white.bold("ERROR"), chalk.redBright(msg)),
+  info: m => console.log(chalk.blue("[INFO]"), m),
+  success: m => console.log(chalk.green("[SUCCESS]"), m),
+  error: m => console.log(chalk.red("[ERROR]"), m),
 };
 
-/* ================== SYSTEM INFO ================== */
-const userInfoSyt = () => {
-  try {
-    return os.userInfo().username;
-  } catch {
-    return process.env.USER || process.env.USERNAME || "desconocido";
-  }
-};
-
-console.log(
-  chalk.yellow.bold(
-    `╔═════[${chalk.yellowBright(userInfoSyt())}@${chalk.yellowBright(os.hostname())}]═════`,
-  ),
-);
-print("OS", `${os.platform()} ${os.release()} ${os.arch()}`);
-print(
-  "Actividad",
-  `${Math.floor(os.uptime() / 3600)} h ${Math.floor((os.uptime() % 3600) / 60)} m`,
-);
-print("CPU", os.cpus()[0]?.model || "unknown");
-print(
-  "Memoria",
-  `${(os.freemem() / 1024 / 1024).toFixed(0)} MiB / ${(os.totalmem() / 1024 / 1024).toFixed(0)} MiB`,
-);
-print("Node.js", process.version);
-print("Baileys", "WhiskeySockets");
-console.log(chalk.yellow.bold("╚" + "═".repeat(40)));
-
-/* ================== START BOT ================== */
-async function startBot() {
-  const { state, saveCreds } = await useMultiFileAuthState(global.sessionName);
-  const { version } = await fetchLatestBaileysVersion();
-
-  const client = makeWASocket({
-    version,
-    logger: pino({ level: "silent" }),
-    auth: state,
-    browser: ["Linux", "Opera"],
+const question = text =>
+  new Promise(resolve => {
+    const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+    rl.question(text, ans => {
+      rl.close();
+      resolve(ans);
+    });
   });
 
-  /* ================== AUTH ================== */
-  if (!client.authState.creds.registered) {
-    const phoneNumber = await question("📱 Ingresa tu número (ej: 519999999): ");
-    try {
-      const pairing = await client.requestPairingCode(phoneNumber, "SONGOKU1");
-      log.success(`Código de emparejamiento: ${pairing}`);
-    } catch (err) {
-      log.error("Error al emparejar");
-      exec("rm -rf ./SonGokuBot_session/*");
-      process.exit(1);
+/* ================== START ================== */
+async function startBot() {
+  try {
+    const { state, saveCreds } = await useMultiFileAuthState(global.sessionName);
+    const { version } = await fetchLatestBaileysVersion();
+
+    const client = makeWASocket({
+      version,
+      auth: state,
+      logger: pino({ level: "silent" }),
+      browser: ["SonGokuBot", "Chrome", "1.0.0"],
+    });
+
+    /* ===== AUTH ===== */
+    if (!client.authState.creds.registered) {
+      const phone = await question("📱 Número (ej: 519999999): ");
+      const code = await client.requestPairingCode(phone);
+      log.success("Código: " + code);
     }
-  }
 
-  await global.loadDatabase();
-  log.success("Base de datos cargada");
+    await global.loadDatabase();
+    log.success("Base de datos cargada");
 
-  client.sendText = (jid, text, quoted = "", options) =>
-    client.sendMessage(jid, { text, ...options }, { quoted });
+    client.decodeJid = jid => {
+      if (!jid) return jid;
+      if (/:\d+@/gi.test(jid)) {
+        const decode = jidDecode(jid) || {};
+        return decode.user && decode.server ? decode.user + "@" + decode.server : jid;
+      }
+      return jid;
+    };
 
-  /* =====================================================
-     🧹 LIMPIEZA GLOBAL PREVENTIVA TMP (CADA 15 MIN)
-     - Borra archivos temporales
-     - Notifica a todos los grupos
-     ===================================================== */
-  const tmpDir = path.join(__dirname, "tmp");
+    /* ===== CONNECTION ===== */
+    client.ev.on("connection.update", ({ connection, lastDisconnect }) => {
+      if (connection === "close") {
+        const reason = new Boom(lastDisconnect?.error)?.output?.statusCode;
 
-  setInterval(async () => {
-    try {
-      if (!fs.existsSync(tmpDir)) return;
+        if (
+          reason === DisconnectReason.connectionLost ||
+          reason === DisconnectReason.restartRequired
+        ) {
+          log.info("Reconectando...");
+          startBot();
+        }
 
-      const files = fs.readdirSync(tmpDir);
-      if (!files.length) return;
-
-      let deleted = 0;
-      for (const file of files) {
-        const filePath = path.join(tmpDir, file);
-        if (fs.statSync(filePath).isFile()) {
-          fs.unlinkSync(filePath);
-          deleted++;
+        if (reason === DisconnectReason.loggedOut) {
+          exec(`rm -rf ${global.sessionName}`);
+          process.exit(1);
         }
       }
 
-      if (deleted === 0) return;
+      if (connection === "open") log.success("Conectado correctamente");
+    });
 
-      const groups = await client.groupFetchAllParticipating();
-      const msg = `🧹 *Mantenimiento automático*\n\n✅ Archivos temporales eliminados: *${deleted}*\n⏰ Frecuencia: cada 15 minutos\n🤖 SonGokuBot`;
+    /* ===== MESSAGES ===== */
+    client.ev.on("messages.upsert", async ({ messages }) => {
+      try {
+        const m = messages[0];
+        if (!m?.message) return;
+        if (m.key.remoteJid === "status@broadcast") return;
 
-      for (const id of Object.keys(groups)) {
-        await client.sendMessage(id, { text: msg });
+        const msg = smsg(client, m);
+        require("./main")(client, msg);
+      } catch (e) {
+        console.error("Error en mensaje:", e);
       }
+    });
 
-      console.log(chalk.cyanBright(`TMP limpiado: ${deleted} archivos`));
-    } catch (e) {
-      console.log(chalk.red("Error en limpieza TMP:"), e.message);
-    }
-  }, 15 * 60 * 1000);
+    client.ev.on("creds.update", saveCreds);
 
-  /* ================== CONNECTION ================== */
-  client.ev.on("connection.update", (update) => {
-    const { connection, lastDisconnect } = update;
-    if (connection === "close") {
-      const reason = new Boom(lastDisconnect?.error)?.output.statusCode;
-      if (
-        reason === DisconnectReason.connectionLost ||
-        reason === DisconnectReason.connectionClosed ||
-        reason === DisconnectReason.restartRequired
-      ) {
-        startBot();
-      } else if (reason === DisconnectReason.loggedOut) {
-        exec("rm -rf ./lurus_session/*");
-        process.exit(1);
-      }
-    }
-    if (connection === "open") log.success("Conectado correctamente");
-  });
+    /* ===== LIMPIEZA TMP (SIN SPAM) ===== */
+    const tmp = path.join(__dirname, "tmp");
 
-  /* ================== MESSAGES ================== */
-  client.ev.on("messages.upsert", async ({ messages }) => {
-    try {
-      let m = messages[0];
-      if (!m.message) return;
-      if (m.key.remoteJid === "status@broadcast") return;
-      m = smsg(client, m);
-      require("./main")(client, m, messages);
-    } catch (e) {
-      console.log(e);
-    }
-  });
+    setInterval(() => {
+      try {
+        if (!fs.existsSync(tmp)) return;
+        fs.readdirSync(tmp).forEach(f => {
+          const p = path.join(tmp, f);
+          if (fs.statSync(p).isFile()) fs.unlinkSync(p);
+        });
+      } catch {}
+    }, 30 * 60 * 1000);
 
-  client.decodeJid = (jid) => {
-    if (!jid) return jid;
-    if (/:\d+@/gi.test(jid)) {
-      const decode = jidDecode(jid) || {};
-      return decode.user && decode.server
-        ? decode.user + "@" + decode.server
-        : jid;
-    }
-    return jid;
-  };
-
-  client.ev.on("creds.update", saveCreds);
+  } catch (err) {
+    console.error("FATAL START ERROR:", err);
+    process.exit(1);
+  }
 }
 
 startBot();
 
-/* ================== HOT RELOAD ================== */
-let file = require.resolve(__filename);
-fs.watchFile(file, () => {
-  fs.unwatchFile(file);
-  console.log(chalk.yellowBright(`Actualizado ${__filename}`));
-  delete require.cache[file];
-  require(file);
-});
