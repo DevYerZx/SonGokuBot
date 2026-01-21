@@ -25,49 +25,27 @@ const pino = require("pino");
 const chalk = require("chalk");
 const fs = require("fs");
 const path = require("path");
-const readline = require("readline");
 const os = require("os");
 const { smsg } = require("./lib/message");
-const { app, server } = require("./lib/server");
 const { Boom } = require("@hapi/boom");
-const { exec } = require("child_process");
 
-/* ================== FIX CRÍTICO ================== */
-/* Crear carpeta de sesión si no existe */
+/* ================== SESIÓN ================== */
 const sessionDir = global.sessionName || "SonGokuBot_session";
 if (!fs.existsSync(sessionDir)) {
   fs.mkdirSync(sessionDir, { recursive: true });
   console.log("📁 Carpeta de sesión creada:", sessionDir);
 }
 
-/* ================== PROTECCIÓN BÁSICA ================== */
+/* ================== PROTECCIÓN ================== */
 process.on("unhandledRejection", (err) => {
-  console.log("❌ PROMISE NO CAPTURADA:", err?.message || err);
+  console.log("❌ PROMISE NO CAPTURADA:", err);
 });
 
 process.on("uncaughtException", (err) => {
-  console.log("❌ EXCEPCIÓN NO CAPTURADA:", err?.message || err);
+  console.log("❌ EXCEPCIÓN NO CAPTURADA:", err);
 });
 
 /* ================== LOGS ================== */
-const print = (label, value) =>
-  console.log(
-    `${chalk.green.bold("║")} ${chalk.cyan.bold(label.padEnd(16))}${chalk.magenta.bold(":")} ${value}`,
-  );
-
-const question = (text) => {
-  const rl = readline.createInterface({
-    input: process.stdin,
-    output: process.stdout,
-  });
-  return new Promise((resolve) =>
-    rl.question(text, (ans) => {
-      rl.close();
-      resolve(ans.trim());
-    }),
-  );
-};
-
 const log = {
   info: (msg) => console.log(chalk.bgBlue.white.bold("INFO"), chalk.white(msg)),
   success: (msg) =>
@@ -79,35 +57,29 @@ const log = {
 };
 
 /* ================== SYSTEM INFO ================== */
-const userInfoSyt = () => {
-  try {
-    return os.userInfo().username;
-  } catch {
-    return process.env.USER || process.env.USERNAME || "desconocido";
-  }
-};
+const print = (label, value) =>
+  console.log(
+    `${chalk.green.bold("║")} ${chalk.cyan.bold(label.padEnd(16))}: ${value}`,
+  );
 
 console.log(
   chalk.yellow.bold(
-    `╔═════[${chalk.yellowBright(userInfoSyt())}@${chalk.yellowBright(os.hostname())}]═════`,
+    `╔═════[${os.userInfo().username}@${os.hostname()}]═════`,
   ),
 );
 print("OS", `${os.platform()} ${os.release()} ${os.arch()}`);
-print(
-  "Actividad",
-  `${Math.floor(os.uptime() / 3600)} h ${Math.floor((os.uptime() % 3600) / 60)} m`,
-);
-print("CPU", os.cpus()[0]?.model || "unknown");
-print(
-  "Memoria",
-  `${(os.freemem() / 1024 / 1024).toFixed(0)} MiB / ${(os.totalmem() / 1024 / 1024).toFixed(0)} MiB`,
-);
 print("Node.js", process.version);
 print("Baileys", "WhiskeySockets");
 console.log(chalk.yellow.bold("╚" + "═".repeat(40)));
 
+/* ================== CONTROL DE ARRANQUE ================== */
+let isStarting = false;
+
 /* ================== START BOT ================== */
 async function startBot() {
+  if (isStarting) return;
+  isStarting = true;
+
   const { state, saveCreds } = await useMultiFileAuthState(sessionDir);
   const { version } = await fetchLatestBaileysVersion();
 
@@ -119,73 +91,62 @@ async function startBot() {
   });
 
   /* ================== AUTH ================== */
-if (!client.authState.creds.registered) {
-  // 📱 Número desde variable de entorno (OBLIGATORIO en hosting)
-  const phoneNumber = process.env.PAIRING_NUMBER;
+  if (!client.authState.creds.registered) {
+    const phoneNumber = process.env.PAIRING_NUMBER;
 
-  if (!phoneNumber) {
-    log.error("❌ Define la variable PAIRING_NUMBER en el panel");
-    log.error("Ejemplo: PAIRING_NUMBER=51999999999");
-    process.exit(1);
-  }
-
-  try {
-    const pairing = await client.requestPairingCode(
-      phoneNumber,
-      "SONGOKU1" // ← puedes cambiar este texto si quieres
-    );
-
-    log.success(`📲 Código de emparejamiento: ${pairing}`);
-    log.info("Abre WhatsApp → Dispositivos vinculados → Vincular dispositivo");
-  } catch (err) {
-    log.error("❌ Error al emparejar");
-    console.error(err);
-
-    // Limpieza segura de sesión
-    if (fs.existsSync(sessionDir)) {
-      exec(`rm -rf ${sessionDir}`);
+    if (!phoneNumber) {
+      log.error("❌ Define PAIRING_NUMBER en el panel");
+      process.exit(1);
     }
 
-    process.exit(1);
+    try {
+      const code = await client.requestPairingCode(phoneNumber, "SONGOKU1");
+      log.success(`📲 Código de emparejamiento: ${code}`);
+    } catch (e) {
+      log.error("❌ Error al emparejar");
+      console.error(e);
+      isStarting = false;
+      return;
+    }
   }
-}
-
 
   await global.loadDatabase();
   log.success("Base de datos cargada");
 
-  client.sendText = (jid, text, quoted = "", options) =>
-    client.sendMessage(jid, { text, ...options }, { quoted });
-
-  /* ================== LIMPIEZA TMP ================== */
+  /* ================== TMP CLEAN ================== */
   const tmpDir = path.join(__dirname, "tmp");
-
-  setInterval(async () => {
-    try {
-      if (!fs.existsSync(tmpDir)) return;
-      for (const file of fs.readdirSync(tmpDir)) {
-        const filePath = path.join(tmpDir, file);
-        if (fs.statSync(filePath).isFile()) fs.unlinkSync(filePath);
-      }
-    } catch {}
+  setInterval(() => {
+    if (!fs.existsSync(tmpDir)) return;
+    for (const f of fs.readdirSync(tmpDir)) {
+      const p = path.join(tmpDir, f);
+      if (fs.statSync(p).isFile()) fs.unlinkSync(p);
+    }
   }, 15 * 60 * 1000);
 
   /* ================== CONNECTION ================== */
   client.ev.on("connection.update", (update) => {
     const { connection, lastDisconnect } = update;
 
-    if (connection === "open") log.success("Conectado correctamente");
+    if (connection === "open") {
+      log.success("Conectado correctamente");
+      isStarting = false;
+    }
 
     if (connection === "close") {
       const reason = new Boom(lastDisconnect?.error)?.output?.statusCode;
+
       if (
         reason === DisconnectReason.connectionLost ||
         reason === DisconnectReason.connectionClosed ||
         reason === DisconnectReason.restartRequired
       ) {
+        log.warning("🔄 Reconectando...");
+        isStarting = false;
         startBot();
-      } else if (reason === DisconnectReason.loggedOut) {
-        exec(`rm -rf ${sessionDir}/*`);
+      }
+
+      if (reason === DisconnectReason.loggedOut) {
+        log.error("❌ Sesión cerrada");
         process.exit(1);
       }
     }
@@ -198,7 +159,7 @@ if (!client.authState.creds.registered) {
       if (!m?.message) return;
       if (m.key.remoteJid === "status@broadcast") return;
       m = smsg(client, m);
-      require("./main")(client, m, messages);
+      require("./main")(client, m);
     } catch (e) {
       console.log(e);
     }
@@ -207,10 +168,8 @@ if (!client.authState.creds.registered) {
   client.decodeJid = (jid) => {
     if (!jid) return jid;
     if (/:\d+@/gi.test(jid)) {
-      const decode = jidDecode(jid) || {};
-      return decode.user && decode.server
-        ? decode.user + "@" + decode.server
-        : jid;
+      const d = jidDecode(jid) || {};
+      return d.user && d.server ? d.user + "@" + d.server : jid;
     }
     return jid;
   };
@@ -219,13 +178,4 @@ if (!client.authState.creds.registered) {
 }
 
 startBot();
-
-/* ================== HOT RELOAD ================== */
-let file = require.resolve(__filename);
-fs.watchFile(file, () => {
-  fs.unwatchFile(file);
-  console.log(chalk.yellowBright(`Actualizado ${__filename}`));
-  delete require.cache[file];
-  require(file);
-});
 
