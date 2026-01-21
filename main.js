@@ -1,169 +1,158 @@
+/**
+ * ================================
+ *        SonGokuBot - MAIN
+ * ================================
+ * Mejorado y blindado por: DvYer
+ * Compatible: Node v20 + Baileys
+ * ================================
+ */
+
 require("./settings");
+
 const fs = require("fs");
 const path = require("path");
 const moment = require("moment");
 const chalk = require("chalk");
 const gradient = require("gradient-string");
+
 const seeCommands = require("./lib/system/commandLoader");
 const initDB = require("./lib/system/initDB");
 const antilink = require("./commands/antilink");
 const { resolveLidToRealJid } = require("./lib/utils");
 
-seeCommands();
+/* ================== LOAD COMMANDS (ONCE) ================== */
+if (!global.__commandsLoaded) {
+  seeCommands();
+  global.__commandsLoaded = true;
+}
 
+/* ================== MAIN HANDLER ================== */
 module.exports = async (client, m) => {
-  let body = "";
+  try {
+    if (!m || !m.message) return;
 
-  if (m.message) {
-    if (m.message.conversation) body = m.message.conversation;
-    else if (m.message.extendedTextMessage?.text)
-      body = m.message.extendedTextMessage.text;
-    else if (m.message.imageMessage?.caption)
-      body = m.message.imageMessage.caption;
-    else if (m.message.videoMessage?.caption)
-      body = m.message.videoMessage.caption;
-    else if (m.message.buttonsResponseMessage?.selectedButtonId)
-      body = m.message.buttonsResponseMessage.selectedButtonId;
-    else if (m.message.listResponseMessage?.singleSelectReply?.selectedRowId)
-      body = m.message.listResponseMessage.singleSelectReply.selectedRowId;
-    else if (m.message.templateButtonReplyMessage?.selectedId)
-      body = m.message.templateButtonReplyMessage.selectedId;
-  }
+    let body = "";
 
-  initDB(m);
-  antilink(client, m);
+    const msg = m.message;
+    body =
+      msg.conversation ||
+      msg.extendedTextMessage?.text ||
+      msg.imageMessage?.caption ||
+      msg.videoMessage?.caption ||
+      msg.buttonsResponseMessage?.selectedButtonId ||
+      msg.listResponseMessage?.singleSelectReply?.selectedRowId ||
+      msg.templateButtonReplyMessage?.selectedId ||
+      "";
 
-  const prefa = [".", "!", "#", "/"];
-  const prefix = prefa.find((p) => body.startsWith(p));
-  if (!prefix) return;
-
-  const from = m.key.remoteJid;
-  const args = body.trim().split(/ +/).slice(1);
-  const text = args.join(" ");
-  const botJid = client.user.id.split(":")[0] + "@s.whatsapp.net";
-
-  const command = body
-    .slice(prefix.length)
-    .trim()
-    .split(/\s+/)[0]
-    .toLowerCase();
-
-  const pushname = m.pushName || "Sin nombre";
-  const sender = m.isGroup
-    ? m.key.participant || m.participant
-    : m.key.remoteJid;
-
-  let groupMetadata = null;
-  let groupAdmins = [];
-  let resolvedAdmins = [];
-  let groupName = "";
-
-  /* ================== FIX ANTI 403 + ANTI CRASH ================== */
-  if (m.isGroup) {
+    /* ================== DB & SECURITY ================== */
     try {
-      groupMetadata = await client.groupMetadata(m.chat);
+      initDB(m);
+      antilink(client, m);
     } catch (e) {
-      groupMetadata = null;
+      console.error("DB/Antilink error:", e);
     }
 
-    if (groupMetadata) {
-      groupName = groupMetadata.subject || "";
+    /* ================== PREFIX ================== */
+    const prefixes = [".", "!", "#", "/"];
+    const prefix = prefixes.find(p => body.startsWith(p));
+    if (!prefix) return;
 
-      groupAdmins = groupMetadata.participants.filter(
-        (p) => p.admin === "admin" || p.admin === "superadmin",
-      );
+    const from = m.chat;
+    const args = body.trim().split(/\s+/).slice(1);
+    const text = args.join(" ");
 
-      resolvedAdmins = await Promise.all(
-        groupAdmins.map(async (adm) => {
-          let realJid = adm.jid;
-          try {
-            realJid = await resolveLidToRealJid(adm.jid, client, m.chat);
-          } catch (e) {}
-          return { ...adm, jid: realJid };
-        }),
-      );
+    const command = body
+      .slice(prefix.length)
+      .trim()
+      .split(/\s+/)[0]
+      .toLowerCase();
+
+    const pushname = m.pushName || "Sin nombre";
+    const sender = m.isGroup ? m.sender : m.chat;
+
+    /* ================== GROUP DATA (SAFE) ================== */
+    let groupMetadata = null;
+    let groupAdmins = [];
+    let resolvedAdmins = [];
+    let groupName = "";
+
+    if (m.isGroup) {
+      try {
+        groupMetadata = await client.groupMetadata(m.chat);
+        groupName = groupMetadata.subject || "";
+
+        groupAdmins = groupMetadata.participants.filter(
+          p => p.admin === "admin" || p.admin === "superadmin",
+        );
+
+        resolvedAdmins = await Promise.all(
+          groupAdmins.map(async adm => {
+            try {
+              const real = await resolveLidToRealJid(adm.id, client, m.chat);
+              return { ...adm, jid: real };
+            } catch {
+              return { ...adm, jid: adm.id };
+            }
+          }),
+        );
+      } catch (e) {
+        console.log("No se pudo obtener metadata del grupo");
+      }
     }
-  }
 
-  const isBotAdmins =
-    m.isGroup && resolvedAdmins.length
-      ? resolvedAdmins.some((p) => p.jid === botJid)
-      : false;
+    const botJid = client.user.id.split(":")[0] + "@s.whatsapp.net";
 
-  const isAdmins =
-    m.isGroup && resolvedAdmins.length
-      ? resolvedAdmins.some((p) => p.jid === m.sender)
-      : false;
+    const isBotAdmins =
+      m.isGroup && resolvedAdmins.some(p => p.jid === botJid);
 
-  /* ================== LOG ================== */
-  const h = chalk.bold.blue("************************************");
-  const v = chalk.bold.white("*");
+    const isAdmins =
+      m.isGroup && resolvedAdmins.some(p => p.jid === sender);
 
-  const date = chalk.bold.yellow(
-    `\n${v} Fecha: ${chalk.whiteBright(moment().format("DD/MM/YY HH:mm:ss"))}`,
-  );
+    /* ================== LOG ================== */
+    const h = chalk.bold.blue("************************************");
+    const v = chalk.bold.white("*");
 
-  const userPrint = chalk.bold.blueBright(
-    `\n${v} Usuario: ${chalk.whiteBright(pushname)}`,
-  );
+    console.log(
+      `\n${h}` +
+        `\n${v} Fecha: ${moment().format("DD/MM/YY HH:mm:ss")}` +
+        `\n${v} Usuario: ${pushname}` +
+        `\n${v} Remitente: ${sender}` +
+        (m.isGroup
+          ? `\n${v} Grupo: ${groupName}\n${v} ID: ${from}`
+          : `\n${v} Chat privado`) +
+        `\n${h}`,
+    );
 
-  const senderPrint = chalk.bold.magentaBright(
-    `\n${v} Remitente: ${gradient("deepskyblue", "darkorchid")(sender)}`,
-  );
+    /* ================== COMMAND EXEC ================== */
+    if (!global.comandos?.has(command)) return;
 
-  const groupPrint = m.isGroup
-    ? chalk.bold.cyanBright(
-        `\n${v} Grupo: ${chalk.greenBright(groupName)}\n${v} ID: ${gradient("violet", "midnightblue")(from)}\n`,
-      )
-    : chalk.bold.greenBright(`\n${v} Chat privado\n`);
+    const cmd = global.comandos.get(command);
+    if (!cmd) return;
 
-  console.log(`\n${h}${date}${userPrint}${senderPrint}${groupPrint}${h}`);
-
-  /* ================== EJECUCIÓN DE COMANDOS ================== */
-  if (global.comandos.has(command)) {
-    const cmdData = global.comandos.get(command);
-    if (!cmdData) return;
-
-    if (
-      cmdData.isOwner &&
-      !global.owner.map((num) => num + "@s.whatsapp.net").includes(m.sender)
-    )
+    if (cmd.isOwner &&
+      !global.owner.map(n => n + "@s.whatsapp.net").includes(sender))
       return m.reply(mess.owner);
 
-    if (cmdData.isReg && !db.data.users[m.sender]?.registered)
+    if (cmd.isReg && !db.data.users[sender]?.registered)
       return m.reply(mess.registered);
 
-    if (cmdData.isGroup && !m.isGroup) return m.reply(mess.group);
-    if (cmdData.isAdmin && !isAdmins) return m.reply(mess.admin);
-    if (cmdData.isBotAdmin && !isBotAdmins) return m.reply(mess.botAdmin);
-    if (cmdData.isPrivate && m.isGroup) return m.reply(mess.private);
+    if (cmd.isGroup && !m.isGroup) return m.reply(mess.group);
+    if (cmd.isAdmin && !isAdmins) return m.reply(mess.admin);
+    if (cmd.isBotAdmin && !isBotAdmins) return m.reply(mess.botAdmin);
+    if (cmd.isPrivate && m.isGroup) return m.reply(mess.private);
 
     try {
-      await cmdData.run(client, m, args, { text });
-    } catch (error) {
-      console.error(
-        chalk.red(`Error ejecutando comando ${command}:`),
-        error,
-      );
-
+      await cmd.run(client, m, args, { text });
+    } catch (err) {
+      console.error(`Error en comando ${command}:`, err);
       await client.sendMessage(
-        m.chat,
+        from,
         { text: "❌ Error al ejecutar el comando" },
-        { quoted: m, ...global.channelInfo },
+        { quoted: m },
       );
     }
+
+  } catch (fatal) {
+    console.error("ERROR FATAL EN main.js:", fatal);
   }
 };
-
-/* ================== HOT RELOAD ================== */
-const mainFile = require.resolve(__filename);
-fs.watchFile(mainFile, () => {
-  fs.unwatchFile(mainFile);
-  console.log(
-    chalk.yellowBright(
-      `\nSe actualizó ${path.basename(__filename)}, recargando...`,
-    ),
-  );
-  delete require.cache[mainFile];
-  require(mainFile);
-});
