@@ -6,6 +6,10 @@ const path = require("path");
 const BOT_NAME = "SonGokuBot";
 const API_URL = "https://gawrgura-api.onrender.com/download/ytdl";
 
+// ⏳ COOLDOWN
+const cooldowns = new Map();
+const COOLDOWN_TIME = 15 * 1000; // 15 segundos
+
 module.exports = {
   command: ["ytvideo", "videoyt", "ytdl"],
   categoria: "descarga",
@@ -13,9 +17,29 @@ module.exports = {
 
   run: async (client, m, args) => {
     let filePath;
+    const userId = m.sender;
+
+    // 🔒 Verificar cooldown
+    if (cooldowns.has(userId)) {
+      const expire = cooldowns.get(userId);
+      const remaining = expire - Date.now();
+
+      if (remaining > 0) {
+        return client.reply(
+          m.chat,
+          `⏳ Espera *${Math.ceil(remaining / 1000)} segundos* antes de volver a usar este comando.`,
+          m,
+          global.channelInfo
+        );
+      }
+    }
+
+    // ✅ Activar cooldown
+    cooldowns.set(userId, Date.now() + COOLDOWN_TIME);
 
     try {
       if (!args.length) {
+        cooldowns.delete(userId);
         return client.reply(
           m.chat,
           "❌ Ingresa un enlace o nombre del video de YouTube.",
@@ -30,6 +54,7 @@ module.exports = {
       if (!videoUrl.startsWith("http")) {
         const search = await yts(videoUrl);
         if (!search.videos?.length) {
+          cooldowns.delete(userId);
           return client.reply(
             m.chat,
             "❌ No se encontraron resultados.",
@@ -69,7 +94,7 @@ module.exports = {
         timeout: 300000
       });
 
-      filePath = path.join(tmpPath, `${Date.now()}.mp4`);
+      filePath = path.join(tmpPath, `${Date.now()}_${userId}.mp4`);
       fs.writeFileSync(filePath, videoRes.data);
 
       await client.sendMessage(
@@ -84,6 +109,7 @@ module.exports = {
       );
 
     } catch (err) {
+      cooldowns.delete(userId);
       await client.reply(
         m.chat,
         "❌ Error al descargar o enviar el video.",
