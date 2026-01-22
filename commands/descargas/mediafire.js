@@ -1,72 +1,115 @@
 const axios = require("axios");
+const fs = require("fs");
+const path = require("path");
+
+const BOT_NAME = "SonGokuBot";
+const API_KEY = "dvyer";
+const API_URL = "https://api-adonix.ultraplus.click/download/mediafire";
+const MAX_MB = 300; // 🔒 LÍMITE 300 MB
 
 module.exports = {
   command: ["mediafire", "mf"],
   categoria: "descarga",
-  description: "Descarga archivos de MediaFire",
+  description: "Descarga archivos de MediaFire y los envía",
 
   run: async (client, m, args) => {
+    let filePath;
+
     try {
-      if (!args[0]) {
+      if (!args.length) {
         return m.reply(
-          "❌ Envía un enlace de MediaFire.\n\nEjemplo:\n.mediafire https://www.mediafire.com/file/xxxx/file"
+          "❌ Ingresa un enlace de MediaFire.\n\nEjemplo:\n.mediafire https://www.mediafire.com/file/xxxxx/file",
+          m,
+          global.channelInfo
         );
       }
 
-      // 🔑 API KEY DIRECTA EN EL COMANDO
-      const API_KEY = "dvyer";
+      await client.reply(
+        m.chat,
+        `📥 Descargando archivo...\n⏳ ${BOT_NAME} está trabajando`,
+        m,
+        global.channelInfo
+      );
 
-      const urlMf = encodeURIComponent(args[0]);
-      const apiUrl = `https://api-adonix.ultraplus.click/download/mediafire?apikey=${API_KEY}&url=${urlMf}`;
+      const api = `${API_URL}?apikey=${API_KEY}&url=${encodeURIComponent(args[0])}`;
+      const res = await axios.get(api, { timeout: 60000 });
 
-      // 🔔 Aviso
-      await m.reply("📥 Obteniendo información del archivo...\n⏳ Espera un momento");
-
-      const res = await axios.get(apiUrl);
-
-      if (!res.data || !res.data.status) {
-        return m.reply("❌ No se pudo obtener el archivo.");
+      if (!res.data?.status) {
+        throw new Error("API inválida");
       }
 
       const file = res.data.result;
 
-      const caption =
-        `📁 *MediaFire Downloader*\n\n` +
-        `📄 *Archivo:* ${file.filename}\n` +
-        `📦 *Tamaño:* ${file.size}\n` +
-        `📂 *Tipo:* ${file.filetype}\n` +
-        `📅 *Subido:* ${file.uploaded}`;
-
-      // ⚠️ WhatsApp límite (~100MB)
-      if (file.size && file.size.includes("MB")) {
-        const sizeMB = parseFloat(file.size);
-        if (sizeMB > 99) {
-          return client.sendMessage(
-            m.chat,
-            {
-              text:
-                caption +
-                `\n\n⚠️ *El archivo es muy grande para WhatsApp.*\n\n🔗 *Descárgalo aquí:*\n${file.link}`
-            },
-            { quoted: m }
-          );
-        }
+      // 📦 Obtener tamaño real
+      let sizeMB = 0;
+      if (file.size?.includes("MB")) {
+        sizeMB = parseFloat(file.size);
+      } else if (file.size?.includes("GB")) {
+        sizeMB = parseFloat(file.size) * 1024;
       }
 
+      // 🚫 Si supera 300 MB → SOLO LINK
+      if (sizeMB > MAX_MB) {
+        return client.sendMessage(
+          m.chat,
+          {
+            text:
+              `📁 *MediaFire Downloader*\n\n` +
+              `📄 *Archivo:* ${file.filename}\n` +
+              `📦 *Tamaño:* ${file.size}\n` +
+              `📂 *Tipo:* ${file.filetype}\n\n` +
+              `⚠️ *El archivo supera el límite de 300MB*\n\n` +
+              `🔗 Descárgalo manualmente:\n${file.link}`
+          },
+          { quoted: m, ...global.channelInfo }
+        );
+      }
+
+      // 📂 Carpeta temporal
+      const tmpDir = path.join(__dirname, "../../tmp");
+      fs.mkdirSync(tmpDir, { recursive: true });
+
+      const safeName = file.filename.replace(/[\\/:*?"<>|]/g, "");
+      filePath = path.join(tmpDir, `${Date.now()}_${safeName}`);
+
+      // ⬇️ DESCARGA REAL
+      const fileRes = await axios.get(file.link, {
+        responseType: "arraybuffer",
+        timeout: 600000 // 10 min
+      });
+
+      fs.writeFileSync(filePath, fileRes.data);
+
+      // 📤 ENVIAR A WHATSAPP
       await client.sendMessage(
         m.chat,
         {
-          document: { url: file.link },
-          fileName: file.filename,
+          document: fs.readFileSync(filePath),
+          fileName: safeName,
           mimetype: "application/octet-stream",
-          caption: caption
+          caption:
+            `📁 *MediaFire Downloader*\n\n` +
+            `📄 *Archivo:* ${file.filename}\n` +
+            `📦 *Tamaño:* ${file.size}\n` +
+            `📂 *Tipo:* ${file.filetype}\n\n` +
+            `🤖 ${BOT_NAME}`
         },
-        { quoted: m }
+        { quoted: m, ...global.channelInfo }
       );
 
-    } catch (e) {
-      console.error("MEDIAFIRE ERROR:", e);
-      m.reply("⚠️ Error al procesar el enlace de MediaFire.");
+    } catch (err) {
+      console.error("MEDIAFIRE ERROR:", err);
+      await client.reply(
+        m.chat,
+        "❌ Error al descargar el archivo de MediaFire.",
+        m,
+        global.channelInfo
+      );
+    } finally {
+      // 🧹 LIMPIEZA
+      if (filePath && fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+      }
     }
   }
 };
