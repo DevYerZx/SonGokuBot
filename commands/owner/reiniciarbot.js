@@ -4,14 +4,18 @@ const path = require("path");
 module.exports = {
   command: ["reiniciarbot", "restart"],
   categoria: "owner",
-  description: "Reinicia el bot manualmente (solo owner)",
+  description: "Reinicia el bot manualmente (solo owner o el número del bot)",
 
   run: async (client, m, args) => {
     try {
-      // 🔹 Verificación segura del owner
-      // Extrae solo el número, sin @s.whatsapp.net
+      // 🔹 Número del sender sin @s.whatsapp.net
       const senderNumber = m.sender.split("@")[0];
-      if (!global.owner.includes(senderNumber)) {
+
+      // 🔹 Número del bot sin @s.whatsapp.net
+      const botNumber = client.user.jid.split("@")[0];
+
+      // 🔹 Verificación: debe ser owner o el mismo número del bot
+      if (!global.owner.includes(senderNumber) && senderNumber !== botNumber) {
         return client.reply(
           m.chat,
           "❌ Solo el owner puede reiniciar el bot",
@@ -52,3 +56,4 @@ module.exports = {
     }
   }
 };
+
