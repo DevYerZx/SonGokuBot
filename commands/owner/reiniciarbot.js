@@ -4,23 +4,29 @@ const path = require("path");
 module.exports = {
   command: ["reiniciarbot", "restart"],
   categoria: "owner",
-  description: "Reinicia el bot manualmente",
+  description: "Reinicia el bot manualmente (solo owner)",
 
   run: async (client, m, args) => {
     try {
-      // Solo owner
-      if (!global.owner.includes(m.sender)) {
-        return client.reply(m.chat, "❌ Solo el owner puede reiniciar el bot", m);
+      // 🔹 Verificación segura del owner
+      // Extrae solo el número, sin @s.whatsapp.net
+      const senderNumber = m.sender.split("@")[0];
+      if (!global.owner.includes(senderNumber)) {
+        return client.reply(
+          m.chat,
+          "❌ Solo el owner puede reiniciar el bot",
+          m
+        );
       }
 
-      // Mensaje de aviso
+      // 🔹 Mensaje de aviso
       await client.reply(
         m.chat,
         "♻️ Reiniciando el bot, espera unos segundos...",
         m
       );
 
-      // OPCIONAL: borrar temporales antes de reiniciar
+      // 🔹 Limpieza de temporales antes de reiniciar
       const tmpPath = path.join(__dirname, "../../tmp");
       if (fs.existsSync(tmpPath)) {
         const files = fs.readdirSync(tmpPath);
@@ -30,15 +36,19 @@ module.exports = {
         }
       }
 
-      // Espera 2 segundos antes de cerrar
+      // 🔹 Espera 2 segundos para que se vea el mensaje antes de cerrar
       setTimeout(() => {
-        console.log("Bot reiniciado por comando del owner");
+        console.log("Bot reiniciado por comando del owner ✅");
         process.exit(0); // PM2 lo levantará si está configurado
       }, 2000);
 
     } catch (err) {
       console.error("REINICIARBOT ERROR:", err);
-      client.reply(m.chat, "❌ Error al intentar reiniciar el bot", m);
+      client.reply(
+        m.chat,
+        "❌ Ocurrió un error al intentar reiniciar el bot",
+        m
+      );
     }
   }
 };
