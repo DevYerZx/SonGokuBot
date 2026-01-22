@@ -1,5 +1,6 @@
 const os = require("os");
-const si = require("systeminformation"); // Para info avanzada de CPU, RAM, disco y red
+const fs = require("fs");
+const path = require("path");
 
 module.exports = {
   command: ["status", "estadisticas", "botinfo"],
@@ -8,49 +9,40 @@ module.exports = {
 
   run: async (client, m, args) => {
     try {
-      // ✅ RAM
-      const totalMem = os.totalmem();
-      const freeMem = os.freemem();
-      const usedMem = totalMem - freeMem;
+      // 🔹 RAM
+      const totalMemMB = (os.totalmem() / 1024 / 1024).toFixed(2);
+      const freeMemMB = (os.freemem() / 1024 / 1024).toFixed(2);
+      const usedMemMB = (totalMemMB - freeMemMB).toFixed(2);
 
-      const usedMemMB = (usedMem / 1024 / 1024).toFixed(2);
-      const freeMemMB = (freeMem / 1024 / 1024).toFixed(2);
-      const totalMemMB = (totalMem / 1024 / 1024).toFixed(2);
+      // 🔹 CPU
+      const cpus = os.cpus();
+      const cpuModel = cpus[0].model;
+      const cpuCores = cpus.length;
 
-      // ✅ CPU
-      const cpuUsage = await si.currentLoad();
-      const cpuInfo = await si.cpu();
+      // 🔹 Uptime del bot
+      const uptimeMin = (os.uptime() / 60).toFixed(2);
 
-      // ✅ Disco
-      const disk = await si.fsSize();
-      const diskUsed = (disk[0].used / 1024 / 1024 / 1024).toFixed(2);
-      const diskTotal = (disk[0].size / 1024 / 1024 / 1024).toFixed(2);
-
-      // ✅ Red (velocidad aproximada)
-      const network = await si.networkStats();
-      const netRxMB = (network[0].rx_bytes / 1024 / 1024).toFixed(2);
-      const netTxMB = (network[0].tx_bytes / 1024 / 1024).toFixed(2);
-
-      // ✅ Info general
-      const uptime = (os.uptime() / 60).toFixed(2); // en minutos
-      const platform = os.platform();
-      const arch = os.arch();
-
+      // 🔹 Disco (solo raíz)
+      let diskUsed = "N/A";
+      let diskTotal = "N/A";
+      try {
+        const stat = fs.statSync("/");
+        // Node nativo no da disco fácil; mejor solo indicar carpeta tmp
+        const tmpPath = path.join(__dirname, "../../tmp");
+        const files = fs.existsSync(tmpPath) ? fs.readdirSync(tmpPath) : [];
+        diskUsed = files.length + " archivos temporales";
+      } catch {}
+      
+      // 🔹 Mensaje completo
       const message = `
 ╭━━〔 🖥️ Estado del Bot 〕━━╮
 ┃ 🤖 Bot: ${global.namebot} v${global.version}
 ┃ 👤 Owner: ${global.owner.join(", ")}
 ┃
-┃ 🕒 Uptime: ${uptime} min
-┃ 💻 Plataforma: ${platform} ${arch}
-┃
+┃ 🕒 Uptime: ${uptimeMin} min
+┃ 💻 CPU: ${cpuModel} | Cores: ${cpuCores}
 ┃ 🧠 RAM: ${usedMemMB} MB / ${totalMemMB} MB (Libre: ${freeMemMB} MB)
-┃ 🖥️ CPU: ${cpuInfo.manufacturer} ${cpuInfo.brand}
-┃ ⚡ Uso CPU: ${cpuUsage.currentLoad.toFixed(2)}%
-┃
-┃ 💾 Disco: ${diskUsed} GB / ${diskTotal} GB
-┃
-┃ 🌐 Red: RX ${netRxMB} MB | TX ${netTxMB} MB
+┃ 💾 Tmp: ${diskUsed}
 ╰━━━━━━━━━━━━━━━━━━━━╯
 `;
 
