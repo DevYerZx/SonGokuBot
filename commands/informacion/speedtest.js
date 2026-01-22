@@ -1,4 +1,4 @@
-const speedTest = require("speedtest-net");
+const https = require("https");
 
 module.exports = {
   command: ["speedtest", "internet"],
@@ -9,27 +9,36 @@ module.exports = {
     try {
       await client.reply(
         m.chat,
-        "⏳ Probando velocidad de internet... Esto puede tardar unos segundos",
+        "⏳ Probando velocidad de internet...\nEsto puede tardar unos segundos",
         m,
         global.channelInfo
       );
 
-      const test = speedTest({ acceptLicense: true, acceptGdpr: true });
+      const url = "https://speed.hetzner.de/100MB.bin"; // archivo de prueba 100MB
+      const startTime = Date.now();
 
-      test.on('data', async data => {
-        const resultMsg =
-          `╭━━〔 🌐 SPEEDTEST 〕━━╮\n` +
-          `┃ Latencia (Ping): ${data.ping.latency} ms\n` +
-          `┃ Velocidad Descarga: ${(data.download.bandwidth / 125000).toFixed(2)} Mbps\n` +
-          `┃ Velocidad Subida: ${(data.upload.bandwidth / 125000).toFixed(2)} Mbps\n` +
-          `┃ Servidor: ${data.server.name}, ${data.server.location}\n` +
-          `╰━━━━━━━━━━━━━━╯\n` +
-          `🤖 ${global.namebot}`;
+      https.get(url, (res) => {
+        let downloaded = 0;
 
-        await client.reply(m.chat, resultMsg, m, global.channelInfo);
-      });
+        res.on("data", (chunk) => {
+          downloaded += chunk.length;
+        });
 
-      test.on('error', async err => {
+        res.on("end", async () => {
+          const durationSec = (Date.now() - startTime) / 1000;
+          const speedMbps = ((downloaded * 8) / (1024 * 1024)) / durationSec;
+
+          const msg =
+            `╭━━〔 🌐 SPEEDTEST 〕━━╮\n` +
+            `┃ Velocidad aproximada de descarga: ${speedMbps.toFixed(2)} Mbps\n` +
+            `┃ Ping estimado: ${durationSec.toFixed(2)} s\n` +
+            `╰━━━━━━━━━━━━━━╯\n` +
+            `🤖 ${global.namebot}`;
+
+          await client.reply(m.chat, msg, m, global.channelInfo);
+        });
+
+      }).on("error", async (err) => {
         console.error("SPEEDTEST ERROR:", err);
         await client.reply(
           m.chat,
@@ -50,3 +59,4 @@ module.exports = {
     }
   }
 };
+
