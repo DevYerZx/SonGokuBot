@@ -8,7 +8,7 @@ const API_URL = "https://api-adonix.ultraplus.click/download/ytaudio";
 const API_KEY = "dvyer"; // 🔑 TU API KEY
 
 module.exports = {
-  command: ["ytaudio", "yta"],
+  command: ["ytaudio"],
   categoria: "descarga",
   description: "Descarga audio de YouTube en MP3",
 
