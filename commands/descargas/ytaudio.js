@@ -1,25 +1,25 @@
-const axios = require("axios");
-const yts = require("yt-search");
 const fs = require("fs");
 const path = require("path");
+const axios = require("axios");
+const yts = require("yt-search");
+const { exec } = require("child_process");
 
 const BOT_NAME = "SonGokuBot";
-const API_URL = "https://api-adonix.ultraplus.click/download/ytaudio";
-const API_KEY = "dvyer"; // 🔑 TU API KEY
 
 module.exports = {
-  command: ["ytaudio"],
+  command: ["ytaudio", "yta"],
   categoria: "descarga",
-  description: "Descarga audio de YouTube en MP3",
+  description: "Descarga audio de YouTube y lo envía compatible con WhatsApp",
 
   run: async (client, m, args) => {
-    let filePath;
+    let tempMp3;
+    let finalMp3;
 
     try {
       if (!args.length) {
         return client.reply(
           m.chat,
-          "⚠️ Ingresa el nombre o enlace del video de YouTube.",
+          "⚠️ Ingresa el nombre del video o URL de YouTube.",
           m,
           global.channelInfo
         );
@@ -29,20 +29,24 @@ module.exports = {
       let videoUrl = query;
       let title = "audio";
 
-      // 🔎 Buscar si no es link
+      const tmpDir = path.join(__dirname, "../../tmp");
+      fs.mkdirSync(tmpDir, { recursive: true });
+
       if (!/^https?:\/\//.test(query)) {
         const search = await yts(query);
-        if (!search.videos.length) {
+        if (!search.videos?.length) {
           return client.reply(
             m.chat,
-            "❌ No se encontraron resultados.",
+            "❌ No se encontraron resultados en YouTube.",
             m,
             global.channelInfo
           );
         }
         const v = search.videos[0];
         videoUrl = v.url;
-        title = v.title;
+        title = v.title.replace(/[\\/:*?"<>|]/g, "").slice(0, 80);
+      } else {
+        title = "audio_youtube";
       }
 
       await client.reply(
@@ -52,59 +56,50 @@ module.exports = {
         global.channelInfo
       );
 
-      // 📡 API con KEY
-      const res = await axios.get(API_URL, {
-        params: {
-          url: videoUrl,
-          apikey: API_KEY
-        },
-        timeout: 120000
-      });
+      const apiRes = await axios.get(
+        `https://gawrgura-api.onrender.com/download/ytmp3?url=${encodeURIComponent(videoUrl)}`,
+        { timeout: 120000 }
+      );
 
-      if (!res.data?.status || !res.data?.data?.url) {
-        throw new Error("API inválida");
-      }
+      if (!apiRes.data?.result) throw new Error("API inválida");
 
-      const audioUrl = res.data.data.url;
-      const safeTitle = res.data.data.title
-        .replace(/[\\/:*?"<>|]/g, "")
-        .slice(0, 60);
+      tempMp3 = path.join(tmpDir, `${Date.now()}.mp3`);
+      finalMp3 = path.join(tmpDir, `${Date.now()}_final.mp3`);
 
-      // 📁 TMP
-      const tmpDir = path.join(__dirname, "../../tmp");
-      fs.mkdirSync(tmpDir, { recursive: true });
-
-      filePath = path.join(tmpDir, `${Date.now()}.mp3`);
-
-      const audio = await axios.get(audioUrl, {
+      const audioData = await axios.get(apiRes.data.result, {
         responseType: "arraybuffer",
         timeout: 300000
       });
 
-      fs.writeFileSync(filePath, audio.data);
+      fs.writeFileSync(tempMp3, audioData.data);
 
-      // 🎧 ENVIAR
+      await new Promise((resolve, reject) => {
+        exec(
+          `ffmpeg -y -i "${tempMp3}" -codec:a libmp3lame -qscale:a 2 "${finalMp3}"`,
+          err => (err ? reject(err) : resolve())
+        );
+      });
+
       await client.sendMessage(
         m.chat,
         {
-          audio: fs.readFileSync(filePath),
+          audio: fs.readFileSync(finalMp3),
           mimetype: "audio/mpeg",
-          fileName: `${safeTitle}.mp3`
+          fileName: `${title}.mp3`
         },
         { quoted: m, ...global.channelInfo }
       );
 
     } catch (err) {
-      console.error("YTAUDIO ERROR:", err);
-      client.reply(
+      await client.reply(
         m.chat,
-        "❌ Error al descargar el audio.",
+        "❌ Ocurrió un error al procesar el audio.",
         m,
         global.channelInfo
       );
     } finally {
-      if (filePath && fs.existsSync(filePath)) fs.unlinkSync(filePath);
+      if (tempMp3 && fs.existsSync(tempMp3)) fs.unlinkSync(tempMp3);
+      if (finalMp3 && fs.existsSync(finalMp3)) fs.unlinkSync(finalMp3);
     }
   }
 };
-
