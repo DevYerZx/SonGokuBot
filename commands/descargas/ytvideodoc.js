@@ -11,7 +11,7 @@ const cooldowns = new Map();
 const COOLDOWN_TIME = 15 * 1000; // 15 segundos
 
 // 📦 LÍMITE DE PESO (150 MB)
-const MAX_SIZE_MB = 150;
+const MAX_SIZE_MB = 400;
 const MAX_SIZE_BYTES = MAX_SIZE_MB * 1024 * 1024;
 
 module.exports = {
