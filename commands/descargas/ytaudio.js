@@ -5,6 +5,7 @@ const path = require("path");
 
 const BOT_NAME = "SonGokuBot";
 const API_URL = "https://api-adonix.ultraplus.click/download/ytaudio";
+const API_KEY = "dvyer"; // 🔑 TU API KEY
 
 module.exports = {
   command: ["ytaudio", "yta"],
@@ -51,9 +52,12 @@ module.exports = {
         global.channelInfo
       );
 
-      // 📡 API
+      // 📡 API con KEY
       const res = await axios.get(API_URL, {
-        params: { url: videoUrl },
+        params: {
+          url: videoUrl,
+          apikey: API_KEY
+        },
         timeout: 120000
       });
 
@@ -103,3 +107,4 @@ module.exports = {
     }
   }
 };
+
