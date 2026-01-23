@@ -4,7 +4,8 @@ const fs = require("fs");
 const path = require("path");
 
 const BOT_NAME = "SonGokuBot";
-const API_URL = "https://gawrgura-api.onrender.com/download/ytdl";
+const API_URL = "https://api-adonix.ultraplus.click/download/ytvideo";
+const API_KEY = "dvyer";
 
 // ⏳ COOLDOWN
 const cooldowns = new Map();
@@ -13,17 +14,15 @@ const COOLDOWN_TIME = 15 * 1000; // 15 segundos
 module.exports = {
   command: ["ytvideo", "videoyt", "ytdl"],
   categoria: "descarga",
-  description: "Descarga y envía solo el video de YouTube",
+  description: "Descarga videos de YouTube en MP4",
 
   run: async (client, m, args) => {
     let filePath;
     const userId = m.sender;
 
-    // 🔒 Verificar cooldown
+    // 🔒 Cooldown
     if (cooldowns.has(userId)) {
-      const expire = cooldowns.get(userId);
-      const remaining = expire - Date.now();
-
+      const remaining = cooldowns.get(userId) - Date.now();
       if (remaining > 0) {
         return client.reply(
           m.chat,
@@ -33,8 +32,6 @@ module.exports = {
         );
       }
     }
-
-    // ✅ Activar cooldown
     cooldowns.set(userId, Date.now() + COOLDOWN_TIME);
 
     try {
@@ -48,12 +45,14 @@ module.exports = {
         );
       }
 
-      let videoUrl = args.join(" ");
+      let query = args.join(" ");
+      let videoUrl = query;
       let title = "video";
 
-      if (!videoUrl.startsWith("http")) {
-        const search = await yts(videoUrl);
-        if (!search.videos?.length) {
+      // 🔎 Buscar si no es link
+      if (!/^https?:\/\//.test(query)) {
+        const search = await yts(query);
+        if (!search.videos.length) {
           cooldowns.delete(userId);
           return client.reply(
             m.chat,
@@ -63,40 +62,48 @@ module.exports = {
           );
         }
         videoUrl = search.videos[0].url;
-        title = search.videos[0].title || title;
+        title = search.videos[0].title;
       }
 
       await client.reply(
         m.chat,
-        `⏳ Buscando tu video...\n🤖 ${BOT_NAME}`,
+        `⏳ Descargando video...\n🎬 ${title}\n🤖 ${BOT_NAME}`,
         m,
         global.channelInfo
       );
 
+      // 📡 API NUEVA + KEY
       const res = await axios.get(API_URL, {
-        params: { url: videoUrl },
+        params: {
+          url: videoUrl,
+          apikey: API_KEY
+        },
         timeout: 120000
       });
 
-      const data = res.data?.result;
-      if (!data?.mp4) throw new Error("Respuesta inválida");
+      if (!res.data?.status || !res.data?.data?.url) {
+        throw new Error("API inválida");
+      }
 
-      const safeTitle = (data.title || title)
+      const data = res.data.data;
+      const safeTitle = data.title
         .replace(/[\\/:*?"<>|]/g, "")
-        .trim()
         .slice(0, 60);
 
+      // 📁 TMP
       const tmpPath = path.join(__dirname, "../../tmp");
       fs.mkdirSync(tmpPath, { recursive: true });
 
-      const videoRes = await axios.get(data.mp4, {
+      filePath = path.join(tmpPath, `${Date.now()}_${userId}.mp4`);
+
+      const videoRes = await axios.get(data.url, {
         responseType: "arraybuffer",
         timeout: 300000
       });
 
-      filePath = path.join(tmpPath, `${Date.now()}_${userId}.mp4`);
       fs.writeFileSync(filePath, videoRes.data);
 
+      // 🎬 ENVIAR VIDEO
       await client.sendMessage(
         m.chat,
         {
@@ -109,6 +116,7 @@ module.exports = {
       );
 
     } catch (err) {
+      console.error("YTVIDEO ERROR:", err);
       cooldowns.delete(userId);
       await client.reply(
         m.chat,
@@ -117,9 +125,8 @@ module.exports = {
         global.channelInfo
       );
     } finally {
-      if (filePath && fs.existsSync(filePath)) {
-        fs.unlinkSync(filePath);
-      }
+      if (filePath && fs.existsSync(filePath)) fs.unlinkSync(filePath);
     }
   }
 };
+
