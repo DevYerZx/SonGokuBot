@@ -49,8 +49,8 @@ function canUse(sender, botJid) {
 }
 
 module.exports = {
-  command: ["ytquality", "ytq"],
-  categoria: "descarga",
+ // command: ["ytquality", "ytq"],
+//categoria: "descarga",
   description: "Descarga YouTube SOLO en 720p",
 
   run: async (client, m, args) => {
