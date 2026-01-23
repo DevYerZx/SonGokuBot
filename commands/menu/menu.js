@@ -83,13 +83,18 @@ module.exports = {
         menuText += `└─⋅☆·̇·̣̇̇·̣̣̇·̣̇̇·̇⸼݇҉ֻ᠂⃟୨୧┈┈┈୨୧⸼݇҉ֻ᠂⃟·̇·̣̇̇·̣̣̇·̣̇̇☆─⋅┘\n`;
       }
 
-      const buttons = [
-        {
-          buttonId: `${usedPrefix}hosting`,
-          buttonText: { displayText: "🤖 TENER BOT / HOSTING" },
-          type: 1
-        }
-      ];
+    const buttons = [
+  {
+    buttonId: `${usedPrefix}hosting`,
+    buttonText: { displayText: "🤖 TENER BOT / HOSTING" },
+    type: 1
+  },
+  {
+    buttonId: `${usedPrefix}grupos`,
+    buttonText: { displayText: "📢 GRUPOS OFICIALES" },
+    type: 1
+  }
+];
 
       await client.sendMessage(
         m.chat,
