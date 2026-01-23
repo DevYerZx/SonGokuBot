@@ -1,5 +1,5 @@
 module.exports = {
-  command: ["leave", "salirgrupo"],
+  command: ["salirgrupo"],
   categoria: "owner",
   description: "Hace que el bot salga del grupo actual",
 
