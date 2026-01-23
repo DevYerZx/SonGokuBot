@@ -2,7 +2,7 @@ const fs = require("fs");
 const path = require("path");
 
 module.exports = {
-  command: ["reiniciarbot", "restart"],
+  command: ["restart"],
   categoria: "owner",
   description: "Reinicia el bot manualmente (solo owner o el número del bot)",
 
