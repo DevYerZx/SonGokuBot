@@ -66,23 +66,29 @@ module.exports = {
         `╰━━━━━━━━━━━━━━━━━━━━━━╯\n\n` +
         `👇 Elige cómo recibir el contenidoㅤ〆`;
 
-      const buttons = [
-        {
-          buttonId: `.ytaudio ${video.url}`,
-          buttonText: { displayText: "🎵 Audio" },
-          type: 1
-        },
-        {
-          buttonId: `.ytvideo ${video.url}`,
-          buttonText: { displayText: "🎬 Video" },
-          type: 1
-        },
-        {
-          buttonId: `.ytdoc ${video.url}`,
-          buttonText: { displayText: "📂 Documento" },
-          type: 1
-        }
-      ];
+  const buttons = [
+  {
+    buttonId: `.ytaudio ${video.url}`,
+    buttonText: { displayText: "🎵 Audio" },
+    type: 1
+  },
+  {
+    buttonId: `.ytvideo ${video.url}`,
+    buttonText: { displayText: "🎬 Video" },
+    type: 1
+  },
+  {
+    buttonId: `.ytdoc ${video.url}`,
+    buttonText: { displayText: "📂 Documento" },
+    type: 1
+  },
+  {
+    buttonId: `.ytquality ${video.url}`,
+    buttonText: { displayText: "🎥 Video 720p" },
+    type: 1
+  }
+];
+
 
       // 📤 Envío con fallback
       try {
