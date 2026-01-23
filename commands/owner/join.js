@@ -1,5 +1,5 @@
 module.exports = {
-  command: ["join", "unirgrupo"],
+  command: ["unirgrupo"],
   categoria: "owner",
   description: "Une el bot a un grupo mediante link",
 
