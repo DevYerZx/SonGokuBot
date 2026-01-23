@@ -81,12 +81,8 @@ module.exports = {
     buttonId: `.ytdoc ${video.url}`,
     buttonText: { displayText: "📂 Documento" },
     type: 1
-  },
-  {
-    buttonId: `.ytquality ${video.url}`,
-    buttonText: { displayText: "🎥 Video 720p" },
-    type: 1
   }
+
 ];
 
 
