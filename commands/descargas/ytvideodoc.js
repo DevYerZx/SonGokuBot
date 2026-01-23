@@ -12,11 +12,11 @@ const cooldowns = new Map();
 const COOLDOWN_TIME = 15 * 1000;
 
 // 📦 LÍMITE 300 MB
-const MAX_SIZE_MB = 300;
+const MAX_SIZE_MB = 500;
 const MAX_SIZE_BYTES = MAX_SIZE_MB * 1024 * 1024;
 
 module.exports = {
-  command: ["ytdoc", "ytdl"],
+  command: ["ytdoc"],
   categoria: "descarga",
   description: "Descarga video de YouTube y lo envía como documento",
 
