@@ -4,38 +4,41 @@ const fs = require("fs");
 const path = require("path");
 
 const BOT_NAME = "SonGokuBot";
-const API_URL = "https://api-adonix.ultraplus.click/download/ytvideo";
-const API_KEY = "dvyer";
+const API_URL = "https://gawrgura-api.onrender.com/download/ytdl";
 
 // ⏳ COOLDOWN
 const cooldowns = new Map();
-const COOLDOWN_TIME = 15 * 1000;
+const COOLDOWN_TIME = 15 * 1000; // 15 segundos
 
-// 📦 LÍMITE 300 MB
-const MAX_SIZE_MB = 500;
+// 📦 LÍMITE DE PESO (150 MB)
+const MAX_SIZE_MB = 150;
 const MAX_SIZE_BYTES = MAX_SIZE_MB * 1024 * 1024;
 
 module.exports = {
-  command: ["ytdoc"],
+  command: ["ytdoc", "ytdl"],
   categoria: "descarga",
-  description: "Descarga video de YouTube y lo envía como documento",
+  description: "Descarga y envía el video de YouTube como documento",
 
   run: async (client, m, args) => {
     let filePath;
     const userId = m.sender;
 
-    // 🔒 Cooldown
+    // 🔒 Verificar cooldown
     if (cooldowns.has(userId)) {
-      const remaining = cooldowns.get(userId) - Date.now();
+      const expire = cooldowns.get(userId);
+      const remaining = expire - Date.now();
+
       if (remaining > 0) {
         return client.reply(
           m.chat,
-          `⏳ Espera *${Math.ceil(remaining / 1000)} segundos* antes de usar este comando.`,
+          `⏳ Espera *${Math.ceil(remaining / 1000)} segundos* antes de volver a usar este comando.`,
           m,
           global.channelInfo
         );
       }
     }
+
+    // ✅ Activar cooldown
     cooldowns.set(userId, Date.now() + COOLDOWN_TIME);
 
     try {
@@ -49,14 +52,13 @@ module.exports = {
         );
       }
 
-      let query = args.join(" ");
-      let videoUrl = query;
+      let videoUrl = args.join(" ");
       let title = "video";
 
       // 🔎 Buscar si no es link
-      if (!/^https?:\/\//.test(query)) {
-        const search = await yts(query);
-        if (!search.videos.length) {
+      if (!videoUrl.startsWith("http")) {
+        const search = await yts(videoUrl);
+        if (!search.videos?.length) {
           cooldowns.delete(userId);
           return client.reply(
             m.chat,
@@ -66,7 +68,7 @@ module.exports = {
           );
         }
         videoUrl = search.videos[0].url;
-        title = search.videos[0].title;
+        title = search.videos[0].title || title;
       }
 
       await client.reply(
@@ -76,41 +78,39 @@ module.exports = {
         global.channelInfo
       );
 
-      // 📡 API ytvideo
+      // 📡 Obtener link MP4
       const res = await axios.get(API_URL, {
-        params: {
-          url: videoUrl,
-          apikey: API_KEY
-        },
+        params: { url: videoUrl },
         timeout: 120000
       });
 
-      if (!res.data?.status || !res.data?.data?.url) {
-        throw new Error("API inválida");
-      }
+      const data = res.data?.result;
+      if (!data?.mp4) throw new Error("Respuesta inválida de la API");
 
-      const data = res.data.data;
-      const safeTitle = data.title
+      const safeTitle = (data.title || title)
         .replace(/[\\/:*?"<>|]/g, "")
+        .trim()
         .slice(0, 60);
 
-      // 📁 TMP
+      // 📁 Carpeta temporal
       const tmpPath = path.join(__dirname, "../../tmp");
       fs.mkdirSync(tmpPath, { recursive: true });
 
-      const videoRes = await axios.get(data.url, {
+      // ⬇️ Descargar video
+      const videoRes = await axios.get(data.mp4, {
         responseType: "arraybuffer",
         timeout: 300000
       });
 
+      // 📦 Verificar tamaño
       const fileSize = Buffer.byteLength(videoRes.data);
       if (fileSize > MAX_SIZE_BYTES) {
         cooldowns.delete(userId);
         return client.reply(
           m.chat,
-          `📦 Peso: *${(fileSize / 1024 / 1024).toFixed(2)} MB*\n` +
-          `❌ Límite: *${MAX_SIZE_MB} MB*\n` +
-          `📩 Contacta al *owner* para aumentar el límite.`,
+          `📦 El archivo pesa *${(fileSize / 1024 / 1024).toFixed(2)} MB*\n\n` +
+          `❌ El límite es *${MAX_SIZE_MB} MB*\n` +
+          `📩 Para aumentar el límite, habla con el *owner*.`,
           m,
           global.channelInfo
         );
@@ -134,6 +134,7 @@ module.exports = {
     } catch (err) {
       console.error("YTDOC ERROR:", err);
       cooldowns.delete(userId);
+
       await client.reply(
         m.chat,
         "❌ Error al descargar o enviar el video.",
@@ -141,8 +142,9 @@ module.exports = {
         global.channelInfo
       );
     } finally {
-      if (filePath && fs.existsSync(filePath)) fs.unlinkSync(filePath);
+      if (filePath && fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+      }
     }
   }
 };
-
