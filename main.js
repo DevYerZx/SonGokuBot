@@ -9,10 +9,42 @@ const initDB = require("./lib/system/initDB");
 const antilink = require("./commands/antilink");
 const { resolveLidToRealJid } = require("./lib/utils");
 
+/* ================== ANTI PRIVADO DB ================== */
+const antiPath = path.join(__dirname, "./database/antiprivado.json");
+
+if (!fs.existsSync(antiPath)) {
+  fs.writeFileSync(antiPath, JSON.stringify({ intentos: [] }, null, 2));
+}
+
 seeCommands();
 
 module.exports = async (client, m) => {
   let body = "";
+
+  /* ================== ANTI PRIVADO ================== */
+  const from = m.key.remoteJid;
+  const senderJid = m.key.participant || m.key.remoteJid;
+  const senderNum = senderJid.split("@")[0];
+  const isGroup = from.endsWith("@g.us");
+  const isOwner = global.owner.includes(senderNum);
+
+  if (!isGroup && global.antiPrivado && !isOwner) {
+    const data = JSON.parse(fs.readFileSync(antiPath));
+
+    data.intentos.push({
+      numero: senderJid,
+      fecha: new Date().toLocaleString(),
+    });
+
+    fs.writeFileSync(antiPath, JSON.stringify(data, null, 2));
+
+    await client.sendMessage(from, {
+      text: "🚫 *Este bot no responde mensajes privados*\n\n👉 Úsalo solo en grupos.",
+    });
+
+    return; // ⛔ corta todo
+  }
+  /* ================== FIN ANTI PRIVADO ================== */
 
   if (m.message) {
     if (m.message.conversation) body = m.message.conversation;
@@ -37,7 +69,6 @@ module.exports = async (client, m) => {
   const prefix = prefa.find((p) => body.startsWith(p));
   if (!prefix) return;
 
-  const from = m.key.remoteJid;
   const args = body.trim().split(/ +/).slice(1);
   const text = args.join(" ");
   const botJid = client.user.id.split(":")[0] + "@s.whatsapp.net";
@@ -70,7 +101,7 @@ module.exports = async (client, m) => {
       groupName = groupMetadata.subject || "";
 
       groupAdmins = groupMetadata.participants.filter(
-        (p) => p.admin === "admin" || p.admin === "superadmin",
+        (p) => p.admin === "admin" || p.admin === "superadmin"
       );
 
       resolvedAdmins = await Promise.all(
@@ -80,7 +111,7 @@ module.exports = async (client, m) => {
             realJid = await resolveLidToRealJid(adm.jid, client, m.chat);
           } catch (e) {}
           return { ...adm, jid: realJid };
-        }),
+        })
       );
     }
   }
@@ -100,20 +131,23 @@ module.exports = async (client, m) => {
   const v = chalk.bold.white("*");
 
   const date = chalk.bold.yellow(
-    `\n${v} Fecha: ${chalk.whiteBright(moment().format("DD/MM/YY HH:mm:ss"))}`,
+    `\n${v} Fecha: ${chalk.whiteBright(moment().format("DD/MM/YY HH:mm:ss"))}`
   );
 
   const userPrint = chalk.bold.blueBright(
-    `\n${v} Usuario: ${chalk.whiteBright(pushname)}`,
+    `\n${v} Usuario: ${chalk.whiteBright(pushname)}`
   );
 
   const senderPrint = chalk.bold.magentaBright(
-    `\n${v} Remitente: ${gradient("deepskyblue", "darkorchid")(sender)}`,
+    `\n${v} Remitente: ${gradient("deepskyblue", "darkorchid")(sender)}`
   );
 
   const groupPrint = m.isGroup
     ? chalk.bold.cyanBright(
-        `\n${v} Grupo: ${chalk.greenBright(groupName)}\n${v} ID: ${gradient("violet", "midnightblue")(from)}\n`,
+        `\n${v} Grupo: ${chalk.greenBright(groupName)}\n${v} ID: ${gradient(
+          "violet",
+          "midnightblue"
+        )(from)}\n`
       )
     : chalk.bold.greenBright(`\n${v} Chat privado\n`);
 
@@ -143,13 +177,13 @@ module.exports = async (client, m) => {
     } catch (error) {
       console.error(
         chalk.red(`Error ejecutando comando ${command}:`),
-        error,
+        error
       );
 
       await client.sendMessage(
         m.chat,
         { text: "❌ Error al ejecutar el comando" },
-        { quoted: m, ...global.channelInfo },
+        { quoted: m, ...global.channelInfo }
       );
     }
   }
@@ -161,8 +195,8 @@ fs.watchFile(mainFile, () => {
   fs.unwatchFile(mainFile);
   console.log(
     chalk.yellowBright(
-      `\nSe actualizó ${path.basename(__filename)}, recargando...`,
-    ),
+      `\nSe actualizó ${path.basename(__filename)}, recargando...`
+    )
   );
   delete require.cache[mainFile];
   require(mainFile);
