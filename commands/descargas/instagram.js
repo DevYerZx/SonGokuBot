@@ -2,7 +2,7 @@ const axios = require("axios")
 
 module.exports = {
   command: ["ig", "instagram"],
-  categoria: "descargas",
+  categoria: "descarga",
 
   run: async (client, m, args) => {
     try {
@@ -35,19 +35,21 @@ module.exports = {
 ${data.metadata.caption || "Sin descripción"}
       `.trim()
 
-      await client.sendMessage(m.chat, {
-        video: { url: videoUrl },
-        caption,
-        contextInfo: {
-          forwardingScore: 999,
-          isForwarded: true,
-          forwardedNewsletterMessageInfo: {
-            newsletterJid: "120363000000000000@newsletter", // 👈 CAMBIA ESTO
-            newsletterName: "🐉 SonGokuBot",
-            serverMessageId: -1
+      await client.sendMessage(
+        m.chat,
+        {
+          video: { url: videoUrl },
+          caption,
+          contextInfo: {
+            forwardingScore: 999,
+            isForwarded: true
           }
+        },
+        {
+          quoted: m,
+          ...global.channelInfo // ✅ AQUÍ SE AGREGA
         }
-      }, { quoted: m })
+      )
 
     } catch (e) {
       console.error(e)
@@ -55,3 +57,4 @@ ${data.metadata.caption || "Sin descripción"}
     }
   }
 }
+
