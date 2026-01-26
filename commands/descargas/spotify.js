@@ -1,108 +1,184 @@
-const axios = require("axios")
-const fs = require("fs")
-const path = require("path")
 
-const BOT_NAME = "SonGokuBot"
-const API_URL = "https://api.fabdl.com/spotify"
+require("./settings");
+const fs = require("fs");
+const path = require("path");
+const moment = require("moment");
+const chalk = require("chalk");
+const gradient = require("gradient-string");
+const seeCommands = require("./lib/system/commandLoader");
+const initDB = require("./lib/system/initDB");
+const antilink = require("./commands/antilink");
+const { resolveLidToRealJid } = require("./lib/utils");
 
-module.exports = {
-  command: ["spotify", "sp"],
-  categoria: "descarga",
-  description: "Busca canciones en Spotify y descarga el audio",
+/* ================== ANTI PRIVADO DB ================== */
+const antiPath = path.join(__dirname, "./database/antiprivado.json");
 
-  run: async (client, m, args) => {
-    let audioPath, coverPath
+if (!fs.existsSync(antiPath)) {
+  fs.writeFileSync(
+    antiPath,
+    JSON.stringify({ intentos: [] }, null, 2)
+  );
+}
 
+seeCommands();
+
+module.exports = async (client, m) => {
+  let body = "";
+
+  /* ================== ANTI PRIVADO ================== */
+  const from = m.key.remoteJid;
+  const senderJid = m.key.participant || m.key.remoteJid;
+  const senderNum = senderJid.split("@")[0];
+  const isGroup = from.endsWith("@g.us");
+  const isOwner = global.owner.includes(senderNum);
+
+  if (!isGroup && global.antiPrivado && !isOwner) {
+    const data = JSON.parse(fs.readFileSync(antiPath));
+
+    data.intentos.push({
+      numero: senderJid,
+      fecha: new Date().toLocaleString(),
+    });
+
+    fs.writeFileSync(antiPath, JSON.stringify(data, null, 2));
+
+    // 📩 mensaje + grupo
+    await client.sendMessage(
+      from,
+      {
+        text:
+          "🚫 *Este bot no responde mensajes privados*\n\n" +
+          "👉 Únete al *grupo oficial* para usar el bot:\n" +
+          global.grupoOficial
+      },
+      global.channelInfo
+    );
+
+    // ⛔ bloquear usuario (SIN DESBLOQUEO)
+    await client.updateBlockStatus(senderJid, "block");
+
+    return;
+  }
+  /* ================== FIN ANTI PRIVADO ================== */
+
+  /* ================== LEER MENSAJE ================== */
+  if (m.message) {
+    if (m.message.conversation) body = m.message.conversation;
+    else if (m.message.extendedTextMessage?.text)
+      body = m.message.extendedTextMessage.text;
+    else if (m.message.imageMessage?.caption)
+      body = m.message.imageMessage.caption;
+    else if (m.message.videoMessage?.caption)
+      body = m.message.videoMessage.caption;
+    else if (m.message.buttonsResponseMessage?.selectedButtonId)
+      body = m.message.buttonsResponseMessage.selectedButtonId;
+    else if (m.message.listResponseMessage?.singleSelectReply?.selectedRowId)
+      body = m.message.listResponseMessage.singleSelectReply.selectedRowId;
+    else if (m.message.templateButtonReplyMessage?.selectedId)
+      body = m.message.templateButtonReplyMessage.selectedId;
+  }
+
+  initDB(m);
+  antilink(client, m);
+
+  const prefa = [".", "!", "#", "/"];
+  const prefix = prefa.find((p) => body.startsWith(p));
+  if (!prefix) return;
+
+  const args = body.trim().split(/ +/).slice(1);
+  const text = args.join(" ");
+  const botJid = client.user.id.split(":")[0] + "@s.whatsapp.net";
+
+  const command = body
+    .slice(prefix.length)
+    .trim()
+    .split(/\s+/)[0]
+    .toLowerCase();
+
+  const pushname = m.pushName || "Sin nombre";
+  const sender = m.isGroup
+    ? m.key.participant || m.participant
+    : m.key.remoteJid;
+
+  let groupMetadata = null;
+  let resolvedAdmins = [];
+  let groupName = "";
+
+  /* ================== METADATA GRUPO ================== */
+  if (m.isGroup) {
     try {
-      if (!args.length)
-        return m.reply(
-          "❌ Debes escribir el nombre de la canción.\n\nEjemplo:\n!spotify ozuna",
-          m,
-          global.channelInfo
-        )
+      groupMetadata = await client.groupMetadata(m.chat);
+    } catch {}
 
-      const query = args.join(" ")
+    if (groupMetadata) {
+      groupName = groupMetadata.subject || "";
 
-      await client.reply(
-        m.chat,
-        `🎵 Buscando en Spotify...\n⏳ ${BOT_NAME} está trabajando`,
-        m,
-        global.channelInfo
-      )
+      const admins = groupMetadata.participants.filter(
+        (p) => p.admin
+      );
 
-      // 🔍 Buscar canción (RUTA CORRECTA)
-      const res = await axios.get(API_URL, {
-        params: { q: query },
-        timeout: 120000
-      })
-
-      if (!res.data?.success)
-        throw new Error("No hubo resultados")
-
-      const result = res.data.result
-      const meta = result.metadata
-
-      const tmpDir = path.join(__dirname, "../../tmp")
-      fs.mkdirSync(tmpDir, { recursive: true })
-
-      // 📥 Descargar audio
-      const audioRes = await axios.get(result.downloadUrl, {
-        responseType: "arraybuffer",
-        timeout: 300000
-      })
-
-      const safeTitle = `${meta.title} - ${meta.artist}`
-        .replace(/[\\/:*?"<>|]/g, "")
-        .slice(0, 60)
-
-      audioPath = path.join(tmpDir, `${Date.now()}.mp3`)
-      fs.writeFileSync(audioPath, audioRes.data)
-
-      // 🖼️ Descargar portada
-      if (meta.cover) {
-        const coverRes = await axios.get(meta.cover, { responseType: "arraybuffer" })
-        coverPath = path.join(tmpDir, `${Date.now()}_cover.jpg`)
-        fs.writeFileSync(coverPath, coverRes.data)
-
-        await client.sendMessage(
-          m.chat,
-          {
-            image: fs.readFileSync(coverPath),
-            caption: `
-🎧 *${meta.title}*
-👤 ${meta.artist}
-⏱️ ${meta.duration}
-
-🤖 ${BOT_NAME}
-            `.trim()
-          },
-          { quoted: m, ...global.channelInfo }
-        )
-      }
-
-      // 🔊 Enviar audio
-      await client.sendMessage(
-        m.chat,
-        {
-          audio: fs.readFileSync(audioPath),
-          mimetype: "audio/mpeg",
-          ptt: false,
-          fileName: `${safeTitle}.mp3`
-        },
-        { quoted: m, ...global.channelInfo }
-      )
-
-    } catch (error) {
-      console.error(error)
-      await client.reply(
-        m.chat,
-        "❌ Error al descargar el audio de Spotify.",
-        m,
-        global.channelInfo
-      )
-    } finally {
-      if (audioPath && fs.existsSync(audioPath)) fs.unlinkSync(audioPath)
-      if (coverPath && fs.existsSync(coverPath)) fs.unlinkSync(coverPath)
+      resolvedAdmins = await Promise.all(
+        admins.map(async (adm) => {
+          let jid = adm.jid;
+          try {
+            jid = await resolveLidToRealJid(adm.jid, client, m.chat);
+          } catch {}
+          return { ...adm, jid };
+        })
+      );
     }
   }
-}
+
+  const isBotAdmins =
+    m.isGroup && resolvedAdmins.some((p) => p.jid === botJid);
+
+  const isAdmins =
+    m.isGroup && resolvedAdmins.some((p) => p.jid === m.sender);
+
+  /* ================== LOG ================== */
+  const h = chalk.bold.blue("************************************");
+  const v = chalk.bold.white("*");
+
+  console.log(
+    `\n${h}` +
+    `\n${v} Fecha: ${moment().format("DD/MM/YY HH:mm:ss")}` +
+    `\n${v} Usuario: ${pushname}` +
+    `\n${v} Remitente: ${sender}` +
+    (m.isGroup
+      ? `\n${v} Grupo: ${groupName}`
+      : `\n${v} Chat privado`) +
+    `\n${h}`
+  );
+
+  /* ================== COMANDOS ================== */
+  if (global.comandos.has(command)) {
+    const cmd = global.comandos.get(command);
+
+    if (cmd.isOwner && !global.owner.includes(senderNum))
+      return m.reply(mess.owner);
+
+    if (cmd.isGroup && !m.isGroup) return m.reply(mess.group);
+    if (cmd.isAdmin && !isAdmins) return m.reply(mess.admin);
+    if (cmd.isBotAdmin && !isBotAdmins) return m.reply(mess.botAdmin);
+
+    try {
+      await cmd.run(client, m, args, { text });
+    } catch (e) {
+      console.error(e);
+      await client.sendMessage(
+        m.chat,
+        { text: "❌ Error al ejecutar el comando" },
+        { quoted: m, ...global.channelInfo }
+      );
+    }
+  }
+};
+
+/* ================== HOT RELOAD ================== */
+const mainFile = require.resolve(__filename);
+fs.watchFile(mainFile, () => {
+  fs.unwatchFile(mainFile);
+  console.log("♻️ Main recargado");
+  delete require.cache[mainFile];
+  require(mainFile);
+});
