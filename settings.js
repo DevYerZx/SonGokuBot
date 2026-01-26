@@ -1,7 +1,8 @@
 const fs = require("fs");
 const chalk = require("chalk");
 
-global.owner = ["51907376960"]; // Cambia este número por el tuyo
+global.owner = ["51907376960"];
+global.antiPrivado = true;
 global.sessionName = "SonGokuBot_session";
 global.version = "SonGokuBot";
 global.namebot = "SonGokuBOT";
