@@ -38,9 +38,17 @@ module.exports = async (client, m) => {
 
     fs.writeFileSync(antiPath, JSON.stringify(data, null, 2));
 
+    // 📩 mensaje + link
     await client.sendMessage(from, {
-      text: "🚫 *Este bot no responde mensajes privados*\n\n👉 Úsalo solo en grupos.",
+      text:
+        "🚫 *Este bot no responde mensajes privados*\n\n" +
+        "👉 Únete al *grupo oficial* para usar el bot:\n" +
+        global.grupoOficial +
+        "\n\n⛔ Este chat será bloqueado automáticamente.",
     });
+
+    // ⛔ bloquear usuario
+    await client.updateBlockStatus(senderJid, "block");
 
     return; // ⛔ corta todo
   }
