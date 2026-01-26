@@ -3,12 +3,12 @@ const fs = require("fs")
 const path = require("path")
 
 const BOT_NAME = "SonGokuBot"
-const API_URL = "https://api.fabdl.com/spotify/search"
+const API_URL = "https://api.fabdl.com/spotify"
 
 module.exports = {
   command: ["spotify", "sp"],
   categoria: "descarga",
-  description: "Busca en Spotify y descarga el audio",
+  description: "Busca canciones en Spotify y descarga el audio",
 
   run: async (client, m, args) => {
     let audioPath, coverPath
@@ -30,26 +30,26 @@ module.exports = {
         global.channelInfo
       )
 
-      // 🔍 Buscar canción
-      const search = await axios.get(API_URL, {
+      // 🔍 Buscar canción (RUTA CORRECTA)
+      const res = await axios.get(API_URL, {
         params: { q: query },
         timeout: 120000
       })
 
-      if (!search.data?.success)
+      if (!res.data?.success)
         throw new Error("No hubo resultados")
 
-      const result = search.data.result
+      const result = res.data.result
       const meta = result.metadata
+
+      const tmpDir = path.join(__dirname, "../../tmp")
+      fs.mkdirSync(tmpDir, { recursive: true })
 
       // 📥 Descargar audio
       const audioRes = await axios.get(result.downloadUrl, {
         responseType: "arraybuffer",
         timeout: 300000
       })
-
-      const tmpDir = path.join(__dirname, "../../tmp")
-      fs.mkdirSync(tmpDir, { recursive: true })
 
       const safeTitle = `${meta.title} - ${meta.artist}`
         .replace(/[\\/:*?"<>|]/g, "")
@@ -96,7 +96,7 @@ module.exports = {
       console.error(error)
       await client.reply(
         m.chat,
-        "❌ Ocurrió un error al descargar el audio de Spotify.",
+        "❌ Error al descargar el audio de Spotify.",
         m,
         global.channelInfo
       )
