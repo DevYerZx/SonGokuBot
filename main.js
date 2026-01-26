@@ -16,9 +16,41 @@ if (!fs.existsSync(antiPath)) {
   fs.writeFileSync(antiPath, JSON.stringify({ intentos: [] }, null, 2));
 }
 
+/* ================== DESBLOQUEO AUTOMÁTICO ================== */
+// revisa cada 1 minuto
+setInterval(async () => {
+  try {
+    const data = JSON.parse(fs.readFileSync(antiPath));
+    const ahora = Date.now();
+    const restantes = [];
+
+    for (const i of data.intentos) {
+      if (i.desbloquearEn && ahora >= i.desbloquearEn) {
+        try {
+          await global.client.updateBlockStatus(i.numero, "unblock");
+          console.log(chalk.green(`✔ Usuario desbloqueado: ${i.numero}`));
+        } catch (e) {
+          console.log(chalk.red(`✖ Error al desbloquear ${i.numero}`));
+          restantes.push(i);
+        }
+      } else {
+        restantes.push(i);
+      }
+    }
+
+    data.intentos = restantes;
+    fs.writeFileSync(antiPath, JSON.stringify(data, null, 2));
+  } catch (e) {
+    console.log(chalk.red("Error en desbloqueo automático"), e);
+  }
+}, 60 * 1000);
+
 seeCommands();
 
 module.exports = async (client, m) => {
+  // guardamos el client global para el desbloqueo
+  global.client = client;
+
   let body = "";
 
   /* ================== ANTI PRIVADO ================== */
@@ -31,9 +63,13 @@ module.exports = async (client, m) => {
   if (!isGroup && global.antiPrivado && !isOwner) {
     const data = JSON.parse(fs.readFileSync(antiPath));
 
+    const desbloquearEn =
+      Date.now() + global.horasDesbloqueo * 60 * 60 * 1000;
+
     data.intentos.push({
       numero: senderJid,
       fecha: new Date().toLocaleString(),
+      desbloquearEn,
     });
 
     fs.writeFileSync(antiPath, JSON.stringify(data, null, 2));
@@ -44,7 +80,7 @@ module.exports = async (client, m) => {
         "🚫 *Este bot no responde mensajes privados*\n\n" +
         "👉 Únete al *grupo oficial* para usar el bot:\n" +
         global.grupoOficial +
-        "\n\n⛔ Este chat será bloqueado automáticamente.",
+        `\n\n⏱️ Serás desbloqueado automáticamente en ${global.horasDesbloqueo} horas.`,
     });
 
     // ⛔ bloquear usuario
