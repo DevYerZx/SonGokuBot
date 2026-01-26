@@ -8,40 +8,55 @@ const API_URL = "https://gawrgura-api.onrender.com/download/ytdl";
 
 // ⏳ COOLDOWN
 const cooldowns = new Map();
-const COOLDOWN_TIME = 15 * 1000; // 15 segundos
+const COOLDOWN_TIME = 15 * 1000;
 
-// 📦 LÍMITE DE PESO (150 MB)
+// 📦 LÍMITE 150 MB
 const MAX_SIZE_MB = 150;
 const MAX_SIZE_BYTES = MAX_SIZE_MB * 1024 * 1024;
+
+// 🔁 Retry automático
+async function axiosRetry(fn, retries = 2) {
+  let lastErr;
+  for (let i = 0; i <= retries; i++) {
+    try {
+      return await fn();
+    } catch (e) {
+      lastErr = e;
+      if (e.response?.status === 403 && i < retries) {
+        await new Promise(r => setTimeout(r, 2000));
+        continue;
+      }
+      throw e;
+    }
+  }
+  throw lastErr;
+}
 
 module.exports = {
   command: ["ytdoc", "ytdl"],
   categoria: "descarga",
-  description: "Descarga y envía el video de YouTube como documento",
+  description: "Descarga video de YouTube como documento",
 
   run: async (client, m, args) => {
     let filePath;
     const userId = m.sender;
 
-    // 🔒 Verificar cooldown
+    /* 🔒 COOLDOWN */
     if (cooldowns.has(userId)) {
-      const expire = cooldowns.get(userId);
-      const remaining = expire - Date.now();
-
+      const remaining = cooldowns.get(userId) - Date.now();
       if (remaining > 0) {
         return client.reply(
           m.chat,
-          `⏳ Espera *${Math.ceil(remaining / 1000)} segundos* antes de volver a usar este comando.`,
+          `⏳ Espera *${Math.ceil(remaining / 1000)} segundos* antes de usar el comando.`,
           m,
           global.channelInfo
         );
       }
     }
-
-    // ✅ Activar cooldown
     cooldowns.set(userId, Date.now() + COOLDOWN_TIME);
 
     try {
+      /* ❌ SIN ARGUMENTOS */
       if (!args.length) {
         cooldowns.delete(userId);
         return client.reply(
@@ -55,10 +70,10 @@ module.exports = {
       let videoUrl = args.join(" ");
       let title = "video";
 
-      // 🔎 Buscar si no es link
+      /* 🔎 BUSCAR SI NO ES LINK */
       if (!videoUrl.startsWith("http")) {
         const search = await yts(videoUrl);
-        if (!search.videos?.length) {
+        if (!search.videos.length) {
           cooldowns.delete(userId);
           return client.reply(
             m.chat,
@@ -68,9 +83,10 @@ module.exports = {
           );
         }
         videoUrl = search.videos[0].url;
-        title = search.videos[0].title || title;
+        title = search.videos[0].title;
       }
 
+      /* ⏳ MENSAJE INICIAL */
       await client.reply(
         m.chat,
         `⏳ Descargando video...\n🤖 ${BOT_NAME}`,
@@ -78,64 +94,84 @@ module.exports = {
         global.channelInfo
       );
 
-      // 📡 Obtener link MP4
-      const res = await axios.get(API_URL, {
-        params: { url: videoUrl },
-        timeout: 120000
-      });
+      /* 📡 PEDIR A TU API */
+      const apiRes = await axiosRetry(() =>
+        axios.get(API_URL, {
+          params: { url: videoUrl },
+          timeout: 120000,
+          headers: {
+            "User-Agent":
+              "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120 Safari/537.36",
+            Accept: "application/json",
+          },
+        })
+      );
 
-      const data = res.data?.result;
+      const data = apiRes.data?.result;
       if (!data?.mp4) throw new Error("Respuesta inválida de la API");
 
       const safeTitle = (data.title || title)
         .replace(/[\\/:*?"<>|]/g, "")
-        .trim()
         .slice(0, 60);
 
-      // 📁 Carpeta temporal
+      /* 📁 TMP */
       const tmpPath = path.join(__dirname, "../../tmp");
       fs.mkdirSync(tmpPath, { recursive: true });
+      filePath = path.join(tmpPath, `${Date.now()}_${userId}.mp4`);
 
-      // ⬇️ Descargar video
-      const videoRes = await axios.get(data.mp4, {
-        responseType: "arraybuffer",
-        timeout: 300000
-      });
+      /* ⬇️ DESCARGAR MP4 */
+      const videoRes = await axiosRetry(() =>
+        axios.get(data.mp4, {
+          responseType: "arraybuffer",
+          timeout: 300000,
+          headers: {
+            "User-Agent":
+              "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120 Safari/537.36",
+            Accept: "*/*",
+          },
+        })
+      );
 
-      // 📦 Verificar tamaño
       const fileSize = Buffer.byteLength(videoRes.data);
       if (fileSize > MAX_SIZE_BYTES) {
         cooldowns.delete(userId);
         return client.reply(
           m.chat,
-          `📦 El archivo pesa *${(fileSize / 1024 / 1024).toFixed(2)} MB*\n\n` +
-          `❌ El límite es *${MAX_SIZE_MB} MB*\n` +
-          `📩 Para aumentar el límite, habla con el *owner*.`,
+          `📦 El archivo pesa *${(fileSize / 1024 / 1024).toFixed(2)} MB*\n` +
+            `❌ Límite máximo: *${MAX_SIZE_MB} MB*`,
           m,
           global.channelInfo
         );
       }
 
-      filePath = path.join(tmpPath, `${Date.now()}_${userId}.mp4`);
       fs.writeFileSync(filePath, videoRes.data);
 
-      // 📄 ENVIAR COMO DOCUMENTO
+      /* 📄 ENVIAR COMO DOCUMENTO */
       await client.sendMessage(
         m.chat,
         {
           document: fs.readFileSync(filePath),
           mimetype: "video/mp4",
           fileName: `${safeTitle}.mp4`,
-          caption: `🎬 ${safeTitle}\n🤖 ${BOT_NAME}`
+          caption: `🎬 ${safeTitle}\n🤖 ${BOT_NAME}`,
         },
         { quoted: m, ...global.channelInfo }
       );
 
-    } catch (err) {
-      console.error("YTDOC ERROR:", err);
+    } catch (e) {
+      console.error("YTDOC API ERROR:", e);
       cooldowns.delete(userId);
 
-      await client.reply(
+      if (e.response?.status === 403) {
+        return client.reply(
+          m.chat,
+          "⚠️ El servidor de descarga está saturado.\nIntenta nuevamente en unos segundos.",
+          m,
+          global.channelInfo
+        );
+      }
+
+      return client.reply(
         m.chat,
         "❌ Error al descargar o enviar el video.",
         m,
@@ -146,5 +182,5 @@ module.exports = {
         fs.unlinkSync(filePath);
       }
     }
-  }
+  },
 };
