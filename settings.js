@@ -2,7 +2,8 @@ const fs = require("fs");
 const chalk = require("chalk");
 
 global.owner = ["51907376960"];
-global.antiPrivado = true;
+global.grupoOficial = "https://chat.whatsapp.com/EiKOEeHRq6zAJEjfmiQ9pg"
+global.antiPrivado = true
 global.sessionName = "SonGokuBot_session";
 global.version = "SonGokuBot";
 global.namebot = "SonGokuBOT";
