@@ -10,26 +10,22 @@ const API_URL = "https://gawrgura-api.onrender.com/download/ytdl";
 const cooldowns = new Map();
 const COOLDOWN_TIME = 15 * 1000;
 
-// 📦 LÍMITE (150 MB)
-const MAX_SIZE_MB = 150;
-const MAX_SIZE_BYTES = MAX_SIZE_MB * 1024 * 1024;
-
 module.exports = {
   command: ["ytdl", "ytdoc"],
   categoria: "descarga",
-  description: "Descarga videos de YouTube y los envía como documento",
+  description: "Descarga un video de YouTube y lo envía como documento",
 
   run: async (client, m, args) => {
     const userId = m.sender;
     let filePath;
 
-    /* ========= COOLDOWN ========= */
+    /* ================= COOLDOWN ================= */
     if (cooldowns.has(userId)) {
-      const restante = cooldowns.get(userId) - Date.now();
-      if (restante > 0) {
+      const wait = cooldowns.get(userId) - Date.now();
+      if (wait > 0) {
         return client.reply(
           m.chat,
-          `⏳ Espera *${Math.ceil(restante / 1000)} segundos* para volver a usar este comando.`,
+          `⏳ Espera *${Math.ceil(wait / 1000)}s* antes de usar este comando.`,
           m,
           global.channelInfo
         );
@@ -52,7 +48,7 @@ module.exports = {
       let videoUrl = query;
       let title = "video";
 
-      /* ========= BUSCAR SI NO ES LINK ========= */
+      /* ========== BUSCAR SI NO ES LINK ========== */
       if (!query.startsWith("http")) {
         const search = await yts(query);
         if (!search.videos.length) {
@@ -70,12 +66,12 @@ module.exports = {
 
       await client.reply(
         m.chat,
-        "⏳ Obteniendo enlace de descarga...",
+        "⏳ Descargando video, espera un momento...",
         m,
         global.channelInfo
       );
 
-      /* ========= LLAMAR A TU API ========= */
+      /* ========== PEDIR A LA API ========== */
       const apiRes = await axios.get(API_URL, {
         params: { url: videoUrl },
         timeout: 120000
@@ -88,38 +84,16 @@ module.exports = {
         .replace(/[\\/:*?"<>|]/g, "")
         .slice(0, 60);
 
-      /* ========= VERIFICAR TAMAÑO (HEAD) ========= */
-      const head = await axios.head(data.mp4, { timeout: 60000 });
-      const fileSize = parseInt(head.headers["content-length"] || 0);
-
-      if (fileSize > MAX_SIZE_BYTES) {
-        cooldowns.delete(userId);
-        return client.reply(
-          m.chat,
-          `📦 El archivo pesa *${(fileSize / 1024 / 1024).toFixed(2)} MB*\n` +
-          `❌ Límite permitido: *${MAX_SIZE_MB} MB*`,
-          m,
-          global.channelInfo
-        );
-      }
-
-      /* ========= RUTA TEMP ========= */
+      /* ========== TMP ========== */
       const tmpDir = path.join(__dirname, "../../tmp");
       fs.mkdirSync(tmpDir, { recursive: true });
 
       filePath = path.join(tmpDir, `${Date.now()}_${userId}.mp4`);
 
-      await client.reply(
-        m.chat,
-        "⬇️ Descargando video...\n📤 Preparando envío...",
-        m,
-        global.channelInfo
-      );
-
-      /* ========= DESCARGA POR STREAM ========= */
+      /* ========== DESCARGA POR STREAM ========== */
       const response = await axios.get(data.mp4, {
         responseType: "stream",
-        timeout: 300000
+        timeout: 0
       });
 
       const writer = fs.createWriteStream(filePath);
@@ -130,7 +104,7 @@ module.exports = {
         writer.on("error", reject);
       });
 
-      /* ========= ENVIAR COMO DOCUMENTO ========= */
+      /* ========== ENVIAR DOCUMENTO ========== */
       await client.sendMessage(
         m.chat,
         {
@@ -143,20 +117,21 @@ module.exports = {
       );
 
     } catch (err) {
-      console.error("❌ YTDL ERROR:", err);
+      console.error("YTDL ERROR:", err);
       cooldowns.delete(userId);
 
       await client.reply(
         m.chat,
-        "❌ Error al descargar o enviar el video.",
+        "❌ Error al descargar o enviar el video.\n📦 Puede ser demasiado largo para WhatsApp.",
         m,
         global.channelInfo
       );
-
     } finally {
+      /* ========== LIMPIAR TMP ========== */
       if (filePath && fs.existsSync(filePath)) {
         fs.unlinkSync(filePath);
       }
     }
   }
 };
+
