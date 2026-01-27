@@ -27,9 +27,11 @@ async function descargarMp3(url, intentos = 2) {
 module.exports = {
   command: ["ytaudio", "yta"],
   categoria: "descarga",
-  description: "Descarga audio de YouTube (rápido, sin FFmpeg)",
+  description: "Descarga audio de YouTube (estable, sin errores)",
 
   run: async (client, m, args) => {
+    let filePath;
+
     try {
       if (!args.length) {
         return client.reply(
@@ -43,6 +45,9 @@ module.exports = {
       let query = args.join(" ");
       let videoUrl = query;
       let title = "audio";
+
+      const tmpDir = path.join(__dirname, "../../tmp");
+      fs.mkdirSync(tmpDir, { recursive: true });
 
       // 🔍 Buscar si no es URL
       if (!/^https?:\/\//.test(query)) {
@@ -81,11 +86,15 @@ module.exports = {
       // ⬇️ Descargar MP3
       const audioData = await descargarMp3(apiRes.data.result);
 
-      // 📤 Enviar directo (SIN FFmpeg)
+      // 💾 Guardar archivo físico
+      filePath = path.join(tmpDir, `${Date.now()}.mp3`);
+      fs.writeFileSync(filePath, audioData.data);
+
+      // 📤 Enviar desde archivo (ESTABLE)
       await client.sendMessage(
         m.chat,
         {
-          audio: audioData.data,
+          audio: fs.readFileSync(filePath),
           mimetype: "audio/mpeg",
           fileName: `${title}.mp3`
         },
@@ -96,11 +105,17 @@ module.exports = {
       console.error(err);
       await client.reply(
         m.chat,
-        "❌ Error al descargar el audio.",
+        "❌ Ocurrió un error al enviar el audio.",
         m,
         global.channelInfo
       );
+    } finally {
+      // 🧹 Limpiar archivo
+      if (filePath && fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+      }
     }
   }
 };
+
 
