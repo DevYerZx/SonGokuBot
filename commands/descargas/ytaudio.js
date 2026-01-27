@@ -5,29 +5,33 @@ const yts = require("yt-search");
 
 const BOT_NAME = "SonGokuBot";
 
-async function descargarMp3(url, intentos = 2) {
-  try {
-    return await axios.get(url, {
-      responseType: "arraybuffer",
-      timeout: 300000,
-      headers: {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
-        "Accept": "*/*",
-        "Referer": "https://youtube.com"
-      }
-    });
-  } catch (e) {
-    if (e.response?.status === 410 && intentos > 0) {
-      return descargarMp3(url, intentos - 1);
+// ⬇️ Descargar MP3 como STREAM (igual que navegador)
+async function descargarMp3Stream(url, filePath) {
+  const response = await axios({
+    method: "GET",
+    url,
+    responseType: "stream",
+    timeout: 300000,
+    headers: {
+      "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+      "Accept": "*/*",
+      "Referer": "https://youtube.com"
     }
-    throw e;
-  }
+  });
+
+  const writer = fs.createWriteStream(filePath);
+  response.data.pipe(writer);
+
+  return new Promise((resolve, reject) => {
+    writer.on("finish", resolve);
+    writer.on("error", reject);
+  });
 }
 
 module.exports = {
   command: ["ytaudio", "yta"],
   categoria: "descarga",
-  description: "Descarga audio de YouTube (estable, sin errores)",
+  description: "Descarga audio de YouTube (estable y sin errores)",
 
   run: async (client, m, args) => {
     let filePath;
@@ -36,7 +40,7 @@ module.exports = {
       if (!args.length) {
         return client.reply(
           m.chat,
-          "⚠️ Ingresa el nombre del video o URL de YouTube.",
+          "⚠️ Escribe el nombre del video o pega un enlace de YouTube.",
           m,
           global.channelInfo
         );
@@ -44,7 +48,7 @@ module.exports = {
 
       let query = args.join(" ");
       let videoUrl = query;
-      let title = "audio";
+      let title = "audio_youtube";
 
       const tmpDir = path.join(__dirname, "../../tmp");
       fs.mkdirSync(tmpDir, { recursive: true });
@@ -83,18 +87,22 @@ module.exports = {
         throw new Error("API inválida");
       }
 
-      // ⬇️ Descargar MP3
-      const audioData = await descargarMp3(apiRes.data.result);
-
-      // 💾 Guardar archivo físico
       filePath = path.join(tmpDir, `${Date.now()}.mp3`);
-      fs.writeFileSync(filePath, audioData.data);
 
-      // 📤 Enviar desde archivo (ESTABLE)
+      // ⬇️ Descargar correctamente
+      await descargarMp3Stream(apiRes.data.result, filePath);
+
+      // 📏 Verificar archivo válido
+      const stats = fs.statSync(filePath);
+      if (stats.size < 50_000) {
+        throw new Error("Archivo MP3 incompleto");
+      }
+
+      // 📤 ENVIAR COMO DOCUMENTO (modo más estable)
       await client.sendMessage(
         m.chat,
         {
-          audio: fs.readFileSync(filePath),
+          document: fs.readFileSync(filePath),
           mimetype: "audio/mpeg",
           fileName: `${title}.mp3`
         },
@@ -105,7 +113,7 @@ module.exports = {
       console.error(err);
       await client.reply(
         m.chat,
-        "❌ Ocurrió un error al enviar el audio.",
+        "❌ Error al descargar o enviar el audio.",
         m,
         global.channelInfo
       );
