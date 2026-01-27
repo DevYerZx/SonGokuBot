@@ -7,100 +7,100 @@ const { exec } = require("child_process");
 module.exports = {
   command: ["ytaudio", "yta"],
   categoria: "descarga",
-  description: "Descarga audio de YouTube (compatible WhatsApp)",
+  description: "Audio YouTube compatible WhatsApp",
 
   run: async (client, m, args) => {
-    let rawPath, finalPath;
+    let rawFile, finalFile;
 
     try {
       if (!args.length) {
         return client.reply(
           m.chat,
-          "⚠️ Escribe el nombre o link del video.",
+          "⚠️ Debes enviar un enlace o nombre.",
           m,
           global.channelInfo
         );
       }
 
-      const query = args.join(" ");
+      let query = args.join(" ");
       let videoUrl = query;
       let title = "audio";
 
-      // 📂 tmp
       const tmpDir = path.join(__dirname, "../../tmp");
       if (!fs.existsSync(tmpDir)) fs.mkdirSync(tmpDir);
 
-      // 🔎 buscar si no es URL
+      // 🔎 Si no es URL (por si alguien escribe)
       if (!query.startsWith("http")) {
-        const search = await yts(query);
-        if (!search.videos.length) {
-          return client.reply(
-            m.chat,
-            "❌ No se encontraron resultados.",
-            m,
-            global.channelInfo
-          );
+        const res = await yts(query);
+        if (!res.videos.length) {
+          return client.reply(m.chat, "❌ No encontrado.", m, global.channelInfo);
         }
-        const v = search.videos[0];
-        videoUrl = v.url;
-        title = v.title.replace(/[\\/:*?"<>|]/g, "").slice(0, 80);
+        videoUrl = res.videos[0].url;
+        title = res.videos[0].title.replace(/[\\/:*?"<>|]/g, "").slice(0, 80);
       }
 
       await client.reply(
         m.chat,
-        `⏳ Descargando audio...\n🎵 ${title}`,
+        "⏳ Procesando audio…",
         m,
         global.channelInfo
       );
 
-      // 🌐 API YTMP3
+      // 🌐 API
       const api = await axios.get(
         `https://gawrgura-api.onrender.com/download/ytmp3?url=${encodeURIComponent(videoUrl)}`,
-        { timeout: 120000 }
+        { timeout: 15000 }
       );
 
       if (!api.data?.status || !api.data.result) {
         throw new Error("API inválida");
       }
 
-      rawPath = path.join(tmpDir, `${Date.now()}_raw.mp3`);
-      finalPath = path.join(tmpDir, `${Date.now()}_final.mp3`);
+      rawFile = path.join(tmpDir, `${Date.now()}_raw.mp3`);
+      finalFile = path.join(tmpDir, `${Date.now()}_final.mp3`);
 
-      // ⬇️ descargar audio
-      const audioStream = await axios.get(api.data.result, {
+      // ⬇️ Descargar MP3 (con headers correctos)
+      const resAudio = await axios.get(api.data.result, {
         responseType: "stream",
+        timeout: 30000,
         headers: {
           "User-Agent": "Mozilla/5.0",
-          "Accept": "*/*"
-        },
-        timeout: 300000
+          "Accept": "audio/*"
+        }
       });
 
-      const writer = fs.createWriteStream(rawPath);
-      audioStream.data.pipe(writer);
+      // ❌ Si no es audio real
+      const type = resAudio.headers["content-type"] || "";
+      if (!type.includes("audio")) {
+        throw new Error("No es audio");
+      }
+
+      const writer = fs.createWriteStream(rawFile);
+      resAudio.data.pipe(writer);
 
       await new Promise((resolve, reject) => {
         writer.on("finish", resolve);
         writer.on("error", reject);
       });
 
-      // 🛠️ FFmpeg → WhatsApp safe
+      // ❌ Tamaño inválido
+      if (fs.statSync(rawFile).size < 120000) {
+        throw new Error("Archivo incompleto");
+      }
+
+      // 🛠️ FFmpeg (WhatsApp SAFE)
       await new Promise((resolve, reject) => {
         exec(
-          `ffmpeg -y -i "${rawPath}" -vn -acodec libmp3lame -ab 128k -ar 44100 "${finalPath}"`,
+          `ffmpeg -y -i "${rawFile}" -vn -acodec libmp3lame -ab 128k -ar 44100 "${finalFile}"`,
           err => (err ? reject(err) : resolve())
         );
       });
-
-      // 🧪 validar tamaño
-      const size = fs.statSync(finalPath).size;
-      if (size < 100000) throw new Error("Audio corrupto");
 
       // 📤 ENVIAR AUDIO NORMAL
       await client.sendMessage(
         m.chat,
         {
-          audio: { url: finalPath }, // 👈 PATH, NO BUFFER
+          audio: { url: finalFile },
           mimetype: "audio/mpeg",
           ptt: false,
           fileName: `${title}.mp3`
@@ -109,17 +109,16 @@ module.exports = {
       );
 
     } catch (err) {
-      console.error(err);
+      console.error("YTAUDIO ERROR:", err.message);
       await client.reply(
         m.chat,
-        "❌ Ocurrió un error al procesar el audio.",
+        "❌ No se pudo procesar el audio.\nIntenta otra canción.",
         m,
         global.channelInfo
       );
     } finally {
-      // 🗑️ limpiar
-      if (rawPath && fs.existsSync(rawPath)) fs.unlinkSync(rawPath);
-      if (finalPath && fs.existsSync(finalPath)) fs.unlinkSync(finalPath);
+      if (rawFile && fs.existsSync(rawFile)) fs.unlinkSync(rawFile);
+      if (finalFile && fs.existsSync(finalFile)) fs.unlinkSync(finalFile);
     }
   }
 };
