@@ -26,7 +26,7 @@ module.exports = {
 
     await client.reply(
       m.chat,
-      "⏳ Tu video se está procesando...\n🤖 Bot: SonGokuBot",
+      "⏳ Procesando video de Facebook...\n🤖 SonGokuBot",
       m,
       global.channelInfo
     );
@@ -44,21 +44,12 @@ module.exports = {
         );
       }
 
-      const videoUrl = data.hd || data.sd;
-
-      // 🔍 Obtener tamaño del archivo
-      const head = await axios.head(videoUrl);
-      const sizeMB = head.headers["content-length"]
-        ? Number(head.headers["content-length"]) / 1024 / 1024
-        : 0;
-
       const caption = `
 📥 *FACEBOOK DOWNLOADER*
 
 🎬 *Título:* ${data.title}
 👤 *Autor:* ${data.creator}
 ⏱ *Duración:* ${(data.duration_ms / 1000).toFixed(0)}s
-📦 *Peso:* ${sizeMB.toFixed(2)} MB
       `.trim();
 
       // Miniatura
@@ -71,24 +62,24 @@ module.exports = {
         { quoted: m, ...global.channelInfo }
       );
 
-      // 📄 Si pesa mucho → documento
-      if (sizeMB > 70) {
+      // 🔥 HD = documento (más pesado)
+      if (data.hd) {
         await client.sendMessage(
           m.chat,
           {
-            document: { url: videoUrl },
+            document: { url: data.hd },
             mimetype: "video/mp4",
-            fileName: "facebook.mp4",
-            caption: "📄 El video pesa mucho, enviado como *documento*",
+            fileName: "facebook_hd.mp4",
+            caption: "📄 Video HD enviado como documento",
           },
           { quoted: m, ...global.channelInfo }
         );
       } else {
-        // 🎥 Video normal
+        // 🎥 SD = video normal
         await client.sendMessage(
           m.chat,
           {
-            video: { url: videoUrl },
+            video: { url: data.sd },
             mimetype: "video/mp4",
             fileName: "facebook.mp4",
           },
@@ -97,10 +88,10 @@ module.exports = {
       }
 
     } catch (e) {
-      console.error(e);
+      console.error("FB ERROR:", e?.response?.status || e.message);
       await client.reply(
         m.chat,
-        "❌ Error al procesar el video de Facebook",
+        "❌ Facebook bloqueó la descarga en este momento\nIntenta nuevamente más tarde",
         m,
         global.channelInfo
       );
