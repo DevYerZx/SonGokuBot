@@ -1,4 +1,4 @@
-const { fetchDownloadLinks, getDownloadLink } = require("lurcloud");
+const axios = require("axios");
 
 module.exports = {
   command: ["fb", "facebook"],
@@ -24,48 +24,83 @@ module.exports = {
       );
     }
 
-    // ✅ Mensaje de aviso usando m, global.channelInfo
     await client.reply(
       m.chat,
-      "⏳ Tu video se está procesando...\nPuede tardar un momento si el archivo es pesado.\n🤖 Bot: SonGokuBot",
+      "⏳ Tu video se está procesando...\n🤖 Bot: SonGokuBot",
       m,
       global.channelInfo
     );
 
     try {
-      const links = await fetchDownloadLinks(args[0], "facebook");
-      if (!links || links.length === 0) {
-        return m.reply(
+      const api = `https://apis-starlights-team.koyeb.app/starlight/facebook?url=${encodeURIComponent(args[0])}`;
+      const { data } = await axios.get(api);
+
+      if (!data || data.status === false) {
+        return client.reply(
           m.chat,
-          "❌ No se pudo obtener el *video*",
+          "❌ No se pudo obtener el video",
           m,
           global.channelInfo
         );
       }
 
-      const videoUrl = getDownloadLink("facebook", links);
+      const videoUrl = data.hd || data.sd;
 
-      const caption = `FB DOWNLOADER
+      // 🔍 Obtener tamaño del archivo
+      const head = await axios.head(videoUrl);
+      const sizeMB = head.headers["content-length"]
+        ? Number(head.headers["content-length"]) / 1024 / 1024
+        : 0;
 
-→ *Enlace* ›
-${args[0]}
-`.trim();
+      const caption = `
+📥 *FACEBOOK DOWNLOADER*
 
+🎬 *Título:* ${data.title}
+👤 *Autor:* ${data.creator}
+⏱ *Duración:* ${(data.duration_ms / 1000).toFixed(0)}s
+📦 *Peso:* ${sizeMB.toFixed(2)} MB
+      `.trim();
+
+      // Miniatura
       await client.sendMessage(
         m.chat,
         {
-          video: { url: videoUrl },
+          image: { url: data.thumbnail },
           caption,
-          mimetype: "video/mp4",
-          fileName: "fb.mp4",
         },
-        { quoted: m, ...global.channelInfo },
+        { quoted: m, ...global.channelInfo }
       );
+
+      // 📄 Si pesa mucho → documento
+      if (sizeMB > 70) {
+        await client.sendMessage(
+          m.chat,
+          {
+            document: { url: videoUrl },
+            mimetype: "video/mp4",
+            fileName: "facebook.mp4",
+            caption: "📄 El video pesa mucho, enviado como *documento*",
+          },
+          { quoted: m, ...global.channelInfo }
+        );
+      } else {
+        // 🎥 Video normal
+        await client.sendMessage(
+          m.chat,
+          {
+            video: { url: videoUrl },
+            mimetype: "video/mp4",
+            fileName: "facebook.mp4",
+          },
+          { quoted: m, ...global.channelInfo }
+        );
+      }
+
     } catch (e) {
       console.error(e);
       await client.reply(
         m.chat,
-        "❌ Ocurrió un error al procesar el video de Facebook",
+        "❌ Error al procesar el video de Facebook",
         m,
         global.channelInfo
       );
