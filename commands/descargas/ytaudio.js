@@ -18,7 +18,7 @@ async function getFreshMp3(videoUrl) {
 }
 
 module.exports = {
-  command: ["ytaudio", "yta"],
+  command: ["ytaudio"],
   categoria: "descarga",
 
   run: async (client, m, args) => {
