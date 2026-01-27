@@ -1,95 +1,135 @@
-const Starlights = require('@StarlightsTeam/Scraper')
-const fetch = require('node-fetch')
-const { ytdl_han } = require('ytdl-han')
+const Starlights = require("@StarlightsTeam/Scraper");
+const fetch = require("node-fetch");
+const { ytdl_han } = require("ytdl-han");
 
-const limit = 100 // MB
+const BOT_NAME = "SonGokuBot";
+const LIMIT_MB = 100;
 
-let handler = async (m, { conn, args, usedPrefix, command }) => {
-  if (!args[0]) {
-    return conn.reply(
-      m.chat,
-      '[ ✰ ] Ingresa el enlace del vídeo de *YouTube*\n\n» Ejemplo:\n' +
-      `> *${usedPrefix + command}* https://youtu.be/QSvaCSt8ixs`,
-      m
-    )
-  }
+module.exports = {
+  command: ["ytmp5", "yta", "fgmp3"],
+  categoria: "descarga",
+  description: "Descarga audio de YouTube (MP3)",
 
-  await m.react('🕓')
-
-  try {
-    // 🔹 Método principal
-    const gi = await ytdl_han(args[0], '128kbps')
-    const sizeMB = parseFloat(gi.data.size.replace('MB', ''))
-
-    if (sizeMB >= limit) {
-      await m.react('✖️')
-      return m.reply(`El archivo pesa más de ${limit} MB, se canceló la descarga.`)
-    }
-
-    const audioBuffer = Buffer.from(gi.data.format, 'base64')
-
-    const txt =
-      '`乂  Y O U T U B E  -  M P 3`\n\n' +
-      `✩ *Título* : ${gi.data.title}\n` +
-      `✩ *Calidad* : 128kbps\n` +
-      `✩ *Tamaño* : ${gi.data.size}\n\n` +
-      '> *- ↻ El audio se está enviando, espera un momento...*'
-
-    await conn.sendFile(m.chat, gi.data.thumbnail, 'thumbnail.jpg', txt, m)
-    await conn.sendMessage(
-      m.chat,
-      {
-        audio: audioBuffer,
-        mimetype: 'audio/mpeg',
-        fileName: `${gi.data.title}.mp3`,
-      },
-      { quoted: m }
-    )
-
-    return await m.react('✅')
-
-  } catch (e1) {
-    // 🔁 Fallback
+  run: async (client, m, args) => {
     try {
-      const { title, size, quality, thumbnail, dl_url } = await Starlights.ytmp3(args[0])
-      const sizeMB = parseFloat(size.replace('MB', ''))
-
-      if (sizeMB >= limit) {
-        await m.react('✖️')
-        return m.reply(`El archivo pesa más de ${limit} MB, se canceló la descarga.`)
+      if (!args.length) {
+        return client.reply(
+          m.chat,
+          "⚠️ Ingresa el enlace de YouTube.\n\nEjemplo:\n!ytmp3 https://youtu.be/QSvaCSt8ixs",
+          m,
+          global.channelInfo
+        );
       }
 
-      const img = await (await fetch(thumbnail)).buffer()
+      const url = args[0];
 
-      const txt2 =
-        '`乂  Y O U T U B E  -  M P 3`\n\n' +
-        `✩ *Título* : ${title}\n` +
-        `✩ *Calidad* : ${quality}\n` +
-        `✩ *Tamaño* : ${size}\n\n` +
-        '> *- ↻ El audio se está enviando, espera un momento...*'
-
-      await conn.sendFile(m.chat, img, 'thumbnail.jpg', txt2, m)
-      await conn.sendMessage(
+      await client.reply(
         m.chat,
-        {
-          audio: { url: dl_url },
-          mimetype: 'audio/mp4',
-          fileName: `${title}.mp3`,
-        },
-        { quoted: m }
-      )
+        "⏳ Procesando audio...\n🤖 " + BOT_NAME,
+        m,
+        global.channelInfo
+      );
 
-      return await m.react('✅')
+      /* ======================
+         MÉTODO PRINCIPAL
+      ====================== */
+      try {
+        const gi = await ytdl_han(url, "128kbps");
+        const sizeMB = parseFloat(gi.data.size.replace("MB", ""));
 
-    } catch (e2) {
-      await m.react('✖️')
+        if (sizeMB >= LIMIT_MB) {
+          return client.reply(
+            m.chat,
+            `❌ El archivo pesa más de ${LIMIT_MB} MB`,
+            m,
+            global.channelInfo
+          );
+        }
+
+        const audioBuffer = Buffer.from(gi.data.format, "base64");
+
+        const caption =
+          "🎵 *YOUTUBE MP3*\n\n" +
+          `📌 Título: ${gi.data.title}\n` +
+          `🎚 Calidad: 128kbps\n` +
+          `📦 Tamaño: ${gi.data.size}\n\n` +
+          "⏳ Enviando audio…";
+
+        await client.sendMessage(
+          m.chat,
+          {
+            image: { url: gi.data.thumbnail },
+            caption,
+          },
+          { quoted: m, ...global.channelInfo }
+        );
+
+        await client.sendMessage(
+          m.chat,
+          {
+            audio: audioBuffer,
+            mimetype: "audio/mpeg",
+            fileName: `${gi.data.title}.mp3`,
+          },
+          { quoted: m, ...global.channelInfo }
+        );
+
+        return;
+
+      } catch (err) {
+        /* ======================
+           FALLBACK STARS
+        ====================== */
+        const { title, size, quality, thumbnail, dl_url } =
+          await Starlights.ytmp3(url);
+
+        const sizeMB = parseFloat(size.replace("MB", ""));
+        if (sizeMB >= LIMIT_MB) {
+          return client.reply(
+            m.chat,
+            `❌ El archivo pesa más de ${LIMIT_MB} MB`,
+            m,
+            global.channelInfo
+          );
+        }
+
+        const img = await (await fetch(thumbnail)).buffer();
+
+        const caption =
+          "🎵 *YOUTUBE MP3*\n\n" +
+          `📌 Título: ${title}\n` +
+          `🎚 Calidad: ${quality}\n` +
+          `📦 Tamaño: ${size}\n\n` +
+          "⏳ Enviando audio…";
+
+        await client.sendMessage(
+          m.chat,
+          {
+            image: img,
+            caption,
+          },
+          { quoted: m, ...global.channelInfo }
+        );
+
+        await client.sendMessage(
+          m.chat,
+          {
+            audio: { url: dl_url },
+            mimetype: "audio/mp4",
+            fileName: `${title}.mp3`,
+          },
+          { quoted: m, ...global.channelInfo }
+        );
+      }
+
+    } catch (error) {
+      console.error(error);
+      await client.reply(
+        m.chat,
+        "❌ Ocurrió un error al procesar el audio.",
+        m,
+        global.channelInfo
+      );
     }
-  }
-}
-
-handler.help = ['ytmp5 <link yt>']
-handler.tags = ['downloader']
-handler.command = ['ytmp5', 'yta', 'fgmp3']
-handler.register = true
-
-module.exports = handler
+  },
+};
