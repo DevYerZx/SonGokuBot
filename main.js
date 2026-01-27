@@ -21,6 +21,15 @@ process.on("uncaughtException", (err) => {
   console.log("❌ EXCEPCIÓN NO CAPTURADA:", err.message)
 })
 
+/* ================== TIMEOUT SEGURO ================== */
+const withTimeout = (promise, ms = 15000) =>
+  Promise.race([
+    promise,
+    new Promise((_, reject) =>
+      setTimeout(() => reject(new Error("Timed Out")), ms)
+    ),
+  ])
+
 /* ================== ANTI PRIVADO DB ================== */
 const antiPath = path.join(__dirname, "./database/antiprivado.json")
 
@@ -43,64 +52,68 @@ module.exports = async (client, m) => {
 
     let body = ""
 
-    /* ================== ANTI PRIVADO ================== */
     const from = m.key.remoteJid
     const senderJid = m.key.participant || m.key.remoteJid
     const senderNum = senderJid.split("@")[0]
     const isGroup = from.endsWith("@g.us")
     const isOwner = global.owner.includes(senderNum)
 
+    /* ================== ANTI PRIVADO ================== */
     if (!isGroup && global.antiPrivado && !isOwner) {
-      antiData.intentos.push({
-        numero: senderJid,
-        fecha: new Date().toLocaleString(),
-      })
+      try {
+        antiData.intentos.push({
+          numero: senderJid,
+          fecha: new Date().toLocaleString(),
+        })
 
-      fs.writeFileSync(antiPath, JSON.stringify(antiData, null, 2))
+        fs.writeFileSync(antiPath, JSON.stringify(antiData, null, 2))
 
-      await client.sendMessage(
-        from,
-        {
-          text:
-            "🚫 *Este bot no responde mensajes privados*\n\n" +
-            "👉 Únete al *grupo oficial* para usar el bot:\n" +
-            global.grupoOficial,
-        },
-        global.channelInfo
-      )
+        await withTimeout(
+          client.sendMessage(
+            from,
+            {
+              text:
+                "🚫 *Este bot no responde mensajes privados*\n\n" +
+                "👉 Únete al *grupo oficial*:\n" +
+                global.grupoOficial,
+            },
+            global.channelInfo
+          )
+        )
 
-      await client.updateBlockStatus(senderJid, "block")
+        await withTimeout(
+          client.updateBlockStatus(senderJid, "block")
+        )
+      } catch (e) {
+        console.log("⚠️ AntiPrivado error:", e.message)
+      }
       return
     }
 
     /* ================== LEER MENSAJE ================== */
     if (m.message) {
-      if (m.message.conversation) body = m.message.conversation
-      else if (m.message.extendedTextMessage?.text)
-        body = m.message.extendedTextMessage.text
-      else if (m.message.imageMessage?.caption)
-        body = m.message.imageMessage.caption
-      else if (m.message.videoMessage?.caption)
-        body = m.message.videoMessage.caption
-      else if (m.message.buttonsResponseMessage?.selectedButtonId)
-        body = m.message.buttonsResponseMessage.selectedButtonId
-      else if (m.message.listResponseMessage?.singleSelectReply?.selectedRowId)
-        body = m.message.listResponseMessage.singleSelectReply.selectedRowId
-      else if (m.message.templateButtonReplyMessage?.selectedId)
-        body = m.message.templateButtonReplyMessage.selectedId
+      body =
+        m.message.conversation ||
+        m.message.extendedTextMessage?.text ||
+        m.message.imageMessage?.caption ||
+        m.message.videoMessage?.caption ||
+        m.message.buttonsResponseMessage?.selectedButtonId ||
+        m.message.listResponseMessage?.singleSelectReply?.selectedRowId ||
+        m.message.templateButtonReplyMessage?.selectedId ||
+        ""
     }
 
-    if (!body) return
     body = body.trim()
+    if (!body) return
 
     /* ================== DB Y ANTILINK ================== */
     try { initDB(m) } catch {}
     try { antilink(client, m) } catch {}
 
     /* ================== PREFIJO ================== */
-    const prefa = [".", "!", "#", "/"]
+    const prefixes = [".", "!", "#", "/"]
     const prefix = body[0]
-    if (!prefa.includes(prefix)) return
+    if (!prefixes.includes(prefix)) return
 
     const args = body.slice(1).trim().split(/ +/)
     const command = args.shift()?.toLowerCase()
@@ -109,35 +122,36 @@ module.exports = async (client, m) => {
     if (!global.comandos.has(command)) return
 
     const botJid = client.user.id.split(":")[0] + "@s.whatsapp.net"
-    const pushname = m.pushName || "Sin nombre"
     const sender = m.isGroup
-      ? m.key.participant || m.participant
+      ? m.key.participant
       : m.key.remoteJid
 
     /* ================== METADATA GRUPO ================== */
-    let groupMetadata = null
     let resolvedAdmins = []
     let groupName = ""
 
     if (m.isGroup) {
       try {
-        groupMetadata = await client.groupMetadata(m.chat)
-      } catch {}
+        const meta = await withTimeout(
+          client.groupMetadata(m.chat),
+          10000
+        )
 
-      if (groupMetadata) {
-        groupName = groupMetadata.subject || ""
-
-        const admins = groupMetadata.participants.filter(p => p.admin)
+        groupName = meta.subject || ""
 
         resolvedAdmins = await Promise.all(
-          admins.map(async (adm) => {
-            let jid = adm.jid
-            try {
-              jid = await resolveLidToRealJid(adm.jid, client, m.chat)
-            } catch {}
-            return { ...adm, jid }
-          })
+          meta.participants
+            .filter(p => p.admin)
+            .map(async (adm) => {
+              let jid = adm.jid
+              try {
+                jid = await resolveLidToRealJid(adm.jid, client, m.chat)
+              } catch {}
+              return { ...adm, jid }
+            })
         )
+      } catch (e) {
+        console.log("⚠️ groupMetadata timeout")
       }
     }
 
@@ -148,39 +162,34 @@ module.exports = async (client, m) => {
       m.isGroup && resolvedAdmins.some(p => p.jid === sender)
 
     /* ================== LOG ================== */
-    const h = chalk.bold.blue("************************************")
-    const v = chalk.bold.white("*")
-
     console.log(
-      `\n${h}` +
-      `\n${v} Fecha: ${moment().format("DD/MM/YY HH:mm:ss")}` +
-      `\n${v} Usuario: ${pushname}` +
-      `\n${v} Remitente: ${sender}` +
-      (m.isGroup
-        ? `\n${v} Grupo: ${groupName}`
-        : `\n${v} Chat privado`) +
-      `\n${h}`
+      chalk.blue("\n━━━━━━━━━━━━━━━━━━━━") +
+      `\n📆 ${moment().format("DD/MM/YY HH:mm:ss")}` +
+      `\n👤 Usuario: ${m.pushName || "Sin nombre"}` +
+      `\n💬 Chat: ${m.isGroup ? groupName : "Privado"}` +
+      chalk.blue("\n━━━━━━━━━━━━━━━━━━━━")
     )
 
     /* ================== EJECUTAR COMANDO ================== */
     const cmd = global.comandos.get(command)
     if (!cmd?.run) return
 
-    if (cmd.isOwner && !global.owner.includes(senderNum))
-      return m.reply(mess.owner)
-
+    if (cmd.isOwner && !isOwner) return m.reply(mess.owner)
     if (cmd.isGroup && !m.isGroup) return m.reply(mess.group)
     if (cmd.isAdmin && !isAdmins) return m.reply(mess.admin)
     if (cmd.isBotAdmin && !isBotAdmins) return m.reply(mess.botAdmin)
 
     try {
-      await cmd.run(client, m, args, { text })
+      await withTimeout(
+        cmd.run(client, m, args, { text }),
+        20000
+      )
     } catch (e) {
-      console.error(e)
+      console.log("❌ ERROR COMANDO:", e.message)
       await client.sendMessage(
         m.chat,
         { text: "❌ Error al ejecutar el comando" },
-        { quoted: m, ...global.channelInfo }
+        { quoted: m }
       )
     }
 
@@ -197,4 +206,5 @@ fs.watchFile(mainFile, () => {
   delete require.cache[mainFile]
   require(mainFile)
 })
+
 
