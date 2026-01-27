@@ -26,7 +26,7 @@ module.exports = {
 
     await client.reply(
       m.chat,
-      "⏳ Tu video se está procesando...\nPuede tardar un momento si el archivo es pesado.",
+      "⏳ Tu video se está procesando...\nPuede tardar un momento si el archivo es largo.",
       m,
       global.channelInfo
     );
@@ -50,33 +50,17 @@ module.exports = {
 ${args[0]}
       `.trim();
 
-      // 🎥 Intentar enviar como video
-      try {
-        await client.sendMessage(
-          m.chat,
-          {
-            video: { url: videoUrl },
-            caption,
-            mimetype: "video/mp4",
-            fileName: "fb.mp4",
-          },
-          { quoted: m, ...global.channelInfo }
-        );
-      } catch (err) {
-        // 📄 Si falla (muy largo/pesado), enviar como documento
-        console.log("Video muy pesado, enviando como documento");
-
-        await client.sendMessage(
-          m.chat,
-          {
-            document: { url: videoUrl },
-            mimetype: "video/mp4",
-            fileName: "fb.mp4",
-            caption: "📄 El video es largo, enviado como documento",
-          },
-          { quoted: m, ...global.channelInfo }
-        );
-      }
+      // 📄 SIEMPRE como documento
+      await client.sendMessage(
+        m.chat,
+        {
+          document: { url: videoUrl },
+          mimetype: "video/mp4",
+          fileName: "facebook.mp4",
+          caption,
+        },
+        { quoted: m, ...global.channelInfo }
+      );
 
     } catch (e) {
       console.error(e);
