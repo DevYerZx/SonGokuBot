@@ -12,155 +12,144 @@ const initDB = require("./lib/system/initDB")
 const antilink = require("./commands/antilink")
 const { resolveLidToRealJid } = require("./lib/utils")
 
-/* ================== PROTECCIÓN GLOBAL ================== */
-process.on("unhandledRejection", (r) =>
-  console.log("❌ PROMISE:", r?.message || r)
-)
-process.on("uncaughtException", (e) =>
-  console.log("❌ EXCEPCIÓN:", e.message)
-)
-
-/* ================== TIMEOUT UTIL ================== */
-const withTimeout = (promise, ms = 15000) =>
-  Promise.race([
-    promise,
-    new Promise((_, r) =>
-      setTimeout(() => r(new Error("Timed Out")), ms)
-    ),
-  ])
-
-/* ================== ANTI PRIVADO DB ================== */
-const antiPath = path.join(__dirname, "./database/antiprivado.json")
-
-if (!fs.existsSync(antiPath)) {
-  fs.writeFileSync(antiPath, JSON.stringify({ intentos: [] }, null, 2))
-}
-
-// cache en memoria (rápido)
-const antiCache = new Set(
-  JSON.parse(fs.readFileSync(antiPath)).intentos.map(x => x.numero)
-)
-
 /* ================== CARGAR COMANDOS ================== */
 seeCommands()
 
 /* ================== HANDLER PRINCIPAL ================== */
 module.exports = async (client, m) => {
-  try {
-    if (!m?.key) return
+  let body = ""
 
-    const from = m.key.remoteJid
-    const senderJid = m.key.participant || m.key.remoteJid
-    const senderNum = senderJid.split("@")[0]
-    const isGroup = from.endsWith("@g.us")
-    const isOwner = global.owner.includes(senderNum)
-
-    /* ================== ANTI PRIVADO SEGURO ================== */
-    if (!isGroup && global.antiPrivado && !isOwner) {
-
-      // ya fue avisado → salir sin hacer nada
-      if (antiCache.has(senderJid)) return
-
-      antiCache.add(senderJid)
-
-      const db = JSON.parse(fs.readFileSync(antiPath))
-      db.intentos.push({
-        numero: senderJid,
-        fecha: new Date().toLocaleString(),
-      })
-      fs.writeFileSync(antiPath, JSON.stringify(db, null, 2))
-
-      try {
-        await withTimeout(
-          client.sendMessage(from, {
-            text:
-              "🚫 *Este bot no responde mensajes privados*\n\n" +
-              "👉 Únete al *grupo oficial*:\n" +
-              global.grupoOficial,
-          }),
-          8000
-        )
-      } catch {
-        console.log("⚠️ Aviso AntiPrivado falló")
-      }
-      return
-    }
-
-    /* ================== LEER MENSAJE ================== */
-    let body =
-      m.message?.conversation ||
-      m.message?.extendedTextMessage?.text ||
-      m.message?.imageMessage?.caption ||
-      m.message?.videoMessage?.caption ||
-      m.message?.buttonsResponseMessage?.selectedButtonId ||
-      m.message?.listResponseMessage?.singleSelectReply?.selectedRowId ||
-      m.message?.templateButtonReplyMessage?.selectedId ||
+  /* ================== LECTURA DE MENSAJE ================== */
+  if (m?.message) {
+    body =
+      m.message.conversation ||
+      m.message.extendedTextMessage?.text ||
+      m.message.imageMessage?.caption ||
+      m.message.videoMessage?.caption ||
+      m.message.buttonsResponseMessage?.selectedButtonId ||
+      m.message.listResponseMessage?.singleSelectReply?.selectedRowId ||
+      m.message.templateButtonReplyMessage?.selectedId ||
       ""
+  }
 
-    body = body.trim()
-    if (!body) return
+  if (!body) return
 
-    /* ================== INIT DB + ANTILINK ================== */
-    try { initDB(m) } catch {}
-    try { antilink(client, m) } catch {}
+  /* ================== INIT DB + ANTILINK ================== */
+  try { initDB(m) } catch {}
+  try { antilink(client, m) } catch {}
 
-    /* ================== PREFIJO ================== */
-    const prefixes = [".", "!", "#", "/"]
-    if (!prefixes.includes(body[0])) return
+  /* ================== PREFIJO ================== */
+  const prefixes = [".", "!", "#", "/"]
+  const prefix = prefixes.find(p => body.startsWith(p))
+  if (!prefix) return
 
-    const args = body.slice(1).trim().split(/ +/)
-    const command = args.shift()?.toLowerCase()
-    const text = args.join(" ")
+  /* ================== DATOS BASE ================== */
+  const from = m.key.remoteJid
+  const args = body.trim().split(/ +/).slice(1)
+  const text = args.join(" ")
+  const botJid = client.user.id.split(":")[0] + "@s.whatsapp.net"
 
-    if (!global.comandos.has(command)) return
+  const command = body
+    .slice(prefix.length)
+    .trim()
+    .split(/\s+/)[0]
+    .toLowerCase()
 
-    /* ================== METADATA GRUPO ================== */
-    let admins = []
-    let groupName = ""
+  const pushname = m.pushName || "Sin nombre"
+  const sender = m.isGroup
+    ? m.key.participant || m.participant
+    : m.key.remoteJid
 
-    if (m.isGroup) {
-      try {
-        const meta = await withTimeout(client.groupMetadata(m.chat), 8000)
-        groupName = meta.subject || ""
-        admins = await Promise.all(
-          meta.participants
-            .filter(p => p.admin)
-            .map(async a => ({
-              ...a,
-              jid: await resolveLidToRealJid(a.jid, client, m.chat).catch(() => a.jid)
-            }))
-        )
-      } catch {}
+  /* ================== METADATA DE GRUPO ================== */
+  let groupMetadata = null
+  let groupAdmins = []
+  let resolvedAdmins = []
+  let groupName = ""
+
+  if (m.isGroup) {
+    try {
+      groupMetadata = await client.groupMetadata(m.chat)
+    } catch {
+      groupMetadata = null
     }
 
-    const botJid = client.user.id.split(":")[0] + "@s.whatsapp.net"
-    const isBotAdmin = admins.some(a => a.jid === botJid)
-    const isAdmin = admins.some(a => a.jid === senderJid)
+    if (groupMetadata) {
+      groupName = groupMetadata.subject || ""
 
-    /* ================== LOG ================== */
-    console.log(
-      chalk.blue("\n━━━━━━━━━━━━━━━━━━━━") +
-      `\n📆 ${moment().format("DD/MM/YY HH:mm:ss")}` +
-      `\n👤 ${m.pushName || "Sin nombre"}` +
-      `\n💬 ${m.isGroup ? groupName : "Privado"}` +
-      chalk.blue("\n━━━━━━━━━━━━━━━━━━━━")
+      groupAdmins = groupMetadata.participants.filter(
+        p => p.admin === "admin" || p.admin === "superadmin"
+      )
+
+      resolvedAdmins = await Promise.all(
+        groupAdmins.map(async adm => {
+          let realJid = adm.jid
+          try {
+            realJid = await resolveLidToRealJid(adm.jid, client, m.chat)
+          } catch {}
+          return { ...adm, jid: realJid }
+        })
+      )
+    }
+  }
+
+  const isBotAdmins =
+    m.isGroup && resolvedAdmins.length
+      ? resolvedAdmins.some(p => p.jid === botJid)
+      : false
+
+  const isAdmins =
+    m.isGroup && resolvedAdmins.length
+      ? resolvedAdmins.some(p => p.jid === m.sender)
+      : false
+
+  /* ================== LOGS ESTÉTICOS ================== */
+  const line = chalk.bold.blue("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+
+  console.log(
+    `\n${line}` +
+    `\n📆 ${chalk.yellow(moment().format("DD/MM/YY HH:mm:ss"))}` +
+    `\n👤 Usuario: ${chalk.whiteBright(pushname)}` +
+    `\n📨 Remitente: ${gradient("deepskyblue", "violet")(sender)}` +
+    (
+      m.isGroup
+        ? `\n👥 Grupo: ${chalk.greenBright(groupName)}`
+        : `\n💬 Chat privado`
+    ) +
+    `\n${line}`
+  )
+
+  /* ================== EJECUCIÓN DE COMANDOS ================== */
+  if (!global.comandos.has(command)) return
+
+  const cmdData = global.comandos.get(command)
+  if (!cmdData) return
+
+  if (
+    cmdData.isOwner &&
+    !global.owner.map(num => num + "@s.whatsapp.net").includes(m.sender)
+  ) return m.reply(mess.owner)
+
+  if (cmdData.isReg && !db.data.users[m.sender]?.registered)
+    return m.reply(mess.registered)
+
+  if (cmdData.isGroup && !m.isGroup) return m.reply(mess.group)
+  if (cmdData.isAdmin && !isAdmins) return m.reply(mess.admin)
+  if (cmdData.isBotAdmin && !isBotAdmins) return m.reply(mess.botAdmin)
+  if (cmdData.isPrivate && m.isGroup) return m.reply(mess.private)
+
+  try {
+    await cmdData.run(client, m, args, { text })
+  } catch (error) {
+    console.error(
+      chalk.red(`❌ Error ejecutando comando: ${command}`),
+      error
     )
 
-    /* ================== EJECUTAR COMANDO ================== */
-    const cmd = global.comandos.get(command)
-
-    if (cmd.isOwner && !isOwner) return m.reply(mess.owner)
-    if (cmd.isGroup && !m.isGroup) return m.reply(mess.group)
-    if (cmd.isAdmin && !isAdmin) return m.reply(mess.admin)
-    if (cmd.isBotAdmin && !isBotAdmin) return m.reply(mess.botAdmin)
-
-    await withTimeout(
-      cmd.run(client, m, args, { text }),
-      20000
+    await client.sendMessage(
+      m.chat,
+      { text: "❌ Error al ejecutar el comando" },
+      { quoted: m, ...global.channelInfo }
     )
-
-  } catch (e) {
-    console.log("❌ ERROR GENERAL:", e.message)
   }
 }
 
@@ -168,7 +157,12 @@ module.exports = async (client, m) => {
 const mainFile = require.resolve(__filename)
 fs.watchFile(mainFile, () => {
   fs.unwatchFile(mainFile)
-  console.log(gradient.rainbow("♻️ Main recargado"))
+  console.log(
+    chalk.yellowBright(
+      `♻️ ${path.basename(__filename)} actualizado, recargando...`
+    )
+  )
   delete require.cache[mainFile]
   require(mainFile)
 })
+
