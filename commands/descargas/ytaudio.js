@@ -4,111 +4,133 @@ const axios = require("axios");
 const yts = require("yt-search");
 const { exec } = require("child_process");
 
+// 🔁 obtener link fresco (evita 410)
 async function getFreshMp3(videoUrl) {
-  const { data } = await axios.get(
+  const res = await axios.get(
     `https://gawrgura-api.onrender.com/download/ytmp3?url=${encodeURIComponent(videoUrl)}`,
     { timeout: 20000 }
   );
 
-  if (!data?.status || !data.result) {
+  if (!res.data?.status || !res.data.result) {
     throw new Error("API inválida");
   }
-
-  return data.result;
+  return res.data.result;
 }
 
 module.exports = {
   command: ["ytaudio", "yta"],
   categoria: "descarga",
+  description: "Descarga audio de YouTube compatible con WhatsApp",
 
   run: async (client, m, args) => {
     let rawPath, finalPath;
 
     try {
       if (!args.length) {
-        return client.reply(m.chat, "⚠️ Escribe el nombre o link del video.", m, global.channelInfo);
+        return client.reply(
+          m.chat,
+          "⚠️ Escribe el nombre o link del video.",
+          m,
+          global.channelInfo
+        );
       }
 
-      let query = args.join(" ");
+      const query = args.join(" ");
       let videoUrl = query;
       let title = "audio";
 
+      // 📂 tmp
       const tmpDir = path.join(__dirname, "../../tmp");
-      if (!fs.existsSync(tmpDir)) fs.mkdirSync(tmpDir, { recursive: true });
+      if (!fs.existsSync(tmpDir)) fs.mkdirSync(tmpDir);
 
-      // 🔎 Buscar si no es URL
+      // 🔎 buscar si no es link
       if (!query.startsWith("http")) {
-        const res = await yts(query);
-        if (!res.videos.length) {
-          return client.reply(m.chat, "❌ No encontrado.", m, global.channelInfo);
+        const search = await yts(query);
+        if (!search.videos.length) {
+          return client.reply(
+            m.chat,
+            "❌ No se encontraron resultados.",
+            m,
+            global.channelInfo
+          );
         }
-        const v = res.videos[0];
+        const v = search.videos[0];
         videoUrl = v.url;
         title = v.title.replace(/[\\/:*?"<>|]/g, "").slice(0, 80);
       }
 
-      await client.reply(m.chat, "⏳ Descargando audio…", m, global.channelInfo);
+      await client.reply(
+        m.chat,
+        `⏳ Descargando audio...\n🎵 ${title}`,
+        m,
+        global.channelInfo
+      );
 
       rawPath = path.join(tmpDir, `${Date.now()}_raw.mp3`);
       finalPath = path.join(tmpDir, `${Date.now()}_final.mp3`);
 
-      // 🔁 Retry inteligente
-      let ok = false;
+      let downloaded = false;
+      let lastError;
+
+      // 🔁 RETRY anti-410
       for (let i = 1; i <= 3; i++) {
         try {
           const mp3Url = await getFreshMp3(videoUrl);
 
-          const res = await axios.get(mp3Url, {
+          const resAudio = await axios.get(mp3Url, {
             responseType: "stream",
-            timeout: 35000,
-            headers: { "User-Agent": "Mozilla/5.0" }
+            timeout: 30000,
+            headers: {
+              "User-Agent": "Mozilla/5.0",
+              "Accept": "audio/*"
+            },
+            validateStatus: s => s === 200
           });
+
+          const writer = fs.createWriteStream(rawPath);
+          resAudio.data.pipe(writer);
 
           await new Promise((resolve, reject) => {
-            const w = fs.createWriteStream(rawPath);
-            res.data.pipe(w);
-            w.on("finish", resolve);
-            w.on("error", reject);
+            writer.on("finish", resolve);
+            writer.on("error", reject);
           });
 
-          if (fs.statSync(rawPath).size < 150000) {
-            throw new Error("MP3 incompleto");
+          if (fs.statSync(rawPath).size < 120000) {
+            throw new Error("Audio incompleto");
           }
 
-          ok = true;
+          downloaded = true;
           break;
-        } catch {
+
+        } catch (err) {
+          lastError = err;
+          console.log(`🔁 Reintento ${i} falló`);
           await new Promise(r => setTimeout(r, 1200));
         }
       }
 
-      if (!ok) throw new Error("No se pudo descargar");
+      if (!downloaded) throw lastError;
 
-      // 🛠️ FFmpeg (opcional pero recomendado)
-      try {
-        await new Promise((resolve, reject) => {
-          exec(
-            `ffmpeg -y -i "${rawPath}" -vn -ar 44100 -ac 2 -b:a 128k "${finalPath}"`,
-            err => (err ? reject(err) : resolve())
-          );
-        });
-      } catch {
-        // fallback si FFmpeg falla
-        finalPath = rawPath;
+      // 🛠️ FFmpeg → WhatsApp SAFE
+      await new Promise((resolve, reject) => {
+        exec(
+          `ffmpeg -y -i "${rawPath}" -vn -acodec libmp3lame -ab 128k -ar 44100 "${finalPath}"`,
+          err => (err ? reject(err) : resolve())
+        );
+      });
+
+      // 📦 BUFFER (CLAVE ABSOLUTA)
+      const audioBuffer = fs.readFileSync(finalPath);
+
+      if (!Buffer.isBuffer(audioBuffer) || audioBuffer.length < 150000) {
+        throw new Error("Audio corrupto");
       }
 
-      if (!fs.existsSync(finalPath) || fs.statSync(finalPath).size < 150000) {
-        throw new Error("Audio final inválido");
-      }
-
-      // ⏳ asegurar cierre de archivo
-      await new Promise(r => setTimeout(r, 500));
-
-      // 📤 ENVÍO CORRECTO (STREAM)
+      // 📤 ENVIAR AUDIO NORMAL
       await client.sendMessage(
         m.chat,
         {
-          audio: fs.createReadStream(finalPath),
+          audio: audioBuffer, // ✅ BUFFER
           mimetype: "audio/mpeg",
           ptt: false,
           fileName: `${title}.mp3`
@@ -116,13 +138,19 @@ module.exports = {
         { quoted: m, ...global.channelInfo }
       );
 
-    } catch (e) {
-      console.error("YTAUDIO:", e.message);
-      client.reply(m.chat, "❌ Error al procesar el audio.", m, global.channelInfo);
+    } catch (err) {
+      console.error("YTAUDIO:", err.message);
+      await client.reply(
+        m.chat,
+        "❌ No se pudo procesar el audio.\nIntenta otra canción.",
+        m,
+        global.channelInfo
+      );
     } finally {
-      [rawPath, finalPath].forEach(f => {
-        if (f && fs.existsSync(f)) fs.unlinkSync(f);
-      });
+      // 🗑️ limpiar
+      if (rawPath && fs.existsSync(rawPath)) fs.unlinkSync(rawPath);
+      if (finalPath && fs.existsSync(finalPath)) fs.unlinkSync(finalPath);
     }
   }
 };
+
