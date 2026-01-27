@@ -1,67 +1,117 @@
+const axios = require("axios")
+const yts = require("yt-search")
 const fs = require("fs")
 const path = require("path")
-const fetch = require("node-fetch")
-const axios = require("axios")
+
+const BOT_NAME = "SonGokuBot"
+const API_URL = "https://nexevo-api.vercel.app/download/y2"
 
 module.exports = {
-  command: ["ytmp4doc", "ytdoc"],
-  categoria: "descargas",
+  command: ["ytdoc1"],
+  categoria: "descarga",
+  description: "Descarga videos de YouTube y los envía como documento",
 
   run: async (client, m, args) => {
+    let videoPath, thumbPath
+
     try {
-      if (!args[0]) {
-        return m.reply("❌ Usa:\n*.ytmp4doc <link de YouTube>*")
+      if (!args.length)
+        return m.reply(
+          "❌ Ingresa un enlace o nombre del video de YouTube.",
+          m,
+          global.channelInfo
+        )
+
+      let query = args.join(" ")
+      let title = "youtube_video"
+
+      // 🔎 Buscar si no es URL
+      if (!query.startsWith("http")) {
+        const search = await yts(query)
+        if (!search.videos.length)
+          return m.reply("❌ No se encontraron resultados.", m, global.channelInfo)
+
+        query = search.videos[0].url
+        title = search.videos[0].title || title
       }
 
-      const url = args[0]
-      const api = `https://nexevo-api.vercel.app/download/y2?url=${encodeURIComponent(url)}`
+      await client.reply(
+        m.chat,
+        `📁 Preparando documento...\n⏳ ${BOT_NAME} está descargando`,
+        m,
+        global.channelInfo
+      )
 
-      await m.reply("⏳ Descargando video en local...")
+      // 🌐 Llamar API
+      const res = await axios.get(API_URL, {
+        params: { url: query },
+        timeout: 120000
+      })
 
-      // 1️⃣ Llamar a la API
-      const res = await fetch(api)
-      const json = await res.json()
+      const data = res.data?.result
+      if (!data?.url) throw new Error("No se obtuvo enlace de descarga")
 
-      if (!json.status || !json.result?.url) {
-        return m.reply("❌ No se pudo obtener el enlace del video.")
+      const safeTitle = (data.info?.title || title)
+        .replace(/[\\/:*?"<>|]/g, "")
+        .trim()
+        .slice(0, 60)
+
+      // 📂 TMP
+      const tmpDir = path.join(__dirname, "../../tmp")
+      fs.mkdirSync(tmpDir, { recursive: true })
+
+      // 🖼️ Miniatura
+      if (data.info?.thumbnail) {
+        const thumbRes = await axios.get(data.info.thumbnail, {
+          responseType: "arraybuffer"
+        })
+        thumbPath = path.join(tmpDir, `${Date.now()}_thumb.jpg`)
+        fs.writeFileSync(thumbPath, thumbRes.data)
+
+        await client.sendMessage(
+          m.chat,
+          {
+            image: fs.readFileSync(thumbPath),
+            caption: `🎬 *${safeTitle}*\n🤖 ${BOT_NAME}`
+          },
+          { quoted: m, ...global.channelInfo }
+        )
       }
 
-      const videoUrl = json.result.url
-      const title = (json.result.info.title || "youtube_video")
-        .replace(/[\\/:*?"<>|]/g, "") // limpiar nombre
-
-      // 2️⃣ Ruta temporal
-      const tmpPath = path.join(__dirname, `../tmp/${title}.mp4`)
-
-      // 3️⃣ Descargar archivo a local
-      const response = await axios({
-        method: "GET",
-        url: videoUrl,
-        responseType: "stream"
+      // ⬇️ Descargar video en local
+      const videoRes = await axios.get(data.url, {
+        responseType: "arraybuffer",
+        timeout: 300000
       })
 
-      const writer = fs.createWriteStream(tmpPath)
-      response.data.pipe(writer)
+      videoPath = path.join(tmpDir, `${Date.now()}.mp4`)
+      fs.writeFileSync(videoPath, videoRes.data)
 
-      await new Promise((resolve, reject) => {
-        writer.on("finish", resolve)
-        writer.on("error", reject)
-      })
-
-      // 4️⃣ Enviar como DOCUMENTO
-      await client.sendMessage(m.chat, {
-        document: fs.readFileSync(tmpPath),
-        mimetype: "video/mp4",
-        fileName: `${title}.mp4`,
-        caption: `📁 *YOUTUBE MP4*\n🎬 Calidad: 360p`
-      }, { quoted: m })
-
-      // 5️⃣ Borrar archivo temporal
-      fs.unlinkSync(tmpPath)
+      // 📤 Enviar como DOCUMENTO
+      await client.sendMessage(
+        m.chat,
+        {
+          document: fs.readFileSync(videoPath),
+          mimetype: "video/mp4",
+          fileName: `${safeTitle}.mp4`,
+          caption: `📁 *YOUTUBE MP4*\n🎬 ${safeTitle}\n🤖 ${BOT_NAME}`
+        },
+        { quoted: m, ...global.channelInfo }
+      )
 
     } catch (err) {
       console.error(err)
-      m.reply("❌ Error durante la descarga o envío.")
+      await client.reply(
+        m.chat,
+        "❌ Error al descargar o enviar el documento.",
+        m,
+        global.channelInfo
+      )
+    } finally {
+      // 🧹 Limpiar TMP
+      if (videoPath && fs.existsSync(videoPath)) fs.unlinkSync(videoPath)
+      if (thumbPath && fs.existsSync(thumbPath)) fs.unlinkSync(thumbPath)
     }
   }
 }
+
