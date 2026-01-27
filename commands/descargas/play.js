@@ -68,12 +68,12 @@ module.exports = {
 
   const buttons = [
   {
-    buttonId: `.ytmp3 ${video.url}`,
+    buttonId: `.ytaudio ${video.url}`,
     buttonText: { displayText: "🎵 Audio" },
     type: 1
   },
   {
-    buttonId: `.ytmp4 ${video.url}`,
+    buttonId: `.ytvideo ${video.url}`,
     buttonText: { displayText: "🎬 Video" },
     type: 1
   },
