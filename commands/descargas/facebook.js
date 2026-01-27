@@ -1,4 +1,4 @@
-const axios = require("axios");
+const { fetchDownloadLinks, getDownloadLink } = require("lurcloud");
 
 module.exports = {
   command: ["fb", "facebook"],
@@ -9,7 +9,7 @@ module.exports = {
     if (!args[0]) {
       return client.reply(
         m.chat,
-        "Ingrese un enlace de *Facebook*\n\n`Ejemplo`\n!fb https://www.facebook.com/share/r/15kXJEJXPA/",
+        "Ingrese un enlace de Facebook\n\nEjemplo\n!fb https://www.facebook.com/share/r/15kXJEJXPA/",
         m,
         global.channelInfo
       );
@@ -26,16 +26,14 @@ module.exports = {
 
     await client.reply(
       m.chat,
-      "⏳ Procesando video de Facebook...\n🤖 SonGokuBot",
+      "⏳ Tu video se está procesando...\nPuede tardar un momento si el archivo es pesado.",
       m,
       global.channelInfo
     );
 
     try {
-      const api = `https://apis-starlights-team.koyeb.app/starlight/facebook?url=${encodeURIComponent(args[0])}`;
-      const { data } = await axios.get(api);
-
-      if (!data || data.status === false) {
+      const links = await fetchDownloadLinks(args[0], "facebook");
+      if (!links || links.length === 0) {
         return client.reply(
           m.chat,
           "❌ No se pudo obtener el video",
@@ -44,54 +42,47 @@ module.exports = {
         );
       }
 
-      const caption = `
-📥 *FACEBOOK DOWNLOADER*
+      const videoUrl = getDownloadLink("facebook", links);
 
-🎬 *Título:* ${data.title}
-👤 *Autor:* ${data.creator}
-⏱ *Duración:* ${(data.duration_ms / 1000).toFixed(0)}s
+      const caption = `FB DOWNLOADER
+
+→ Enlace ›
+${args[0]}
       `.trim();
 
-      // Miniatura
-      await client.sendMessage(
-        m.chat,
-        {
-          image: { url: data.thumbnail },
-          caption,
-        },
-        { quoted: m, ...global.channelInfo }
-      );
-
-      // 🔥 HD = documento (más pesado)
-      if (data.hd) {
+      // 🎥 Intentar enviar como video
+      try {
         await client.sendMessage(
           m.chat,
           {
-            document: { url: data.hd },
+            video: { url: videoUrl },
+            caption,
             mimetype: "video/mp4",
-            fileName: "facebook_hd.mp4",
-            caption: "📄 Video HD enviado como documento",
+            fileName: "fb.mp4",
           },
           { quoted: m, ...global.channelInfo }
         );
-      } else {
-        // 🎥 SD = video normal
+      } catch (err) {
+        // 📄 Si falla (muy largo/pesado), enviar como documento
+        console.log("Video muy pesado, enviando como documento");
+
         await client.sendMessage(
           m.chat,
           {
-            video: { url: data.sd },
+            document: { url: videoUrl },
             mimetype: "video/mp4",
-            fileName: "facebook.mp4",
+            fileName: "fb.mp4",
+            caption: "📄 El video es largo, enviado como documento",
           },
           { quoted: m, ...global.channelInfo }
         );
       }
 
     } catch (e) {
-      console.error("FB ERROR:", e?.response?.status || e.message);
+      console.error(e);
       await client.reply(
         m.chat,
-        "❌ Facebook bloqueó la descarga en este momento\nIntenta nuevamente más tarde",
+        "❌ Ocurrió un error al procesar el video de Facebook",
         m,
         global.channelInfo
       );
