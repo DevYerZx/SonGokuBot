@@ -4,7 +4,8 @@ const fs = require("fs");
 const path = require("path");
 
 const BOT_NAME = "SonGokuBot";
-const API_URL = "https://gawrgura-api.onrender.com/download/ytdl";
+const API_URL = "https://api-adonix.ultraplus.click/download/ytvideo";
+const API_KEY = "dvyer";
 
 // ⏳ COOLDOWN
 const cooldowns = new Map();
@@ -48,7 +49,7 @@ module.exports = {
       let videoUrl = query;
       let title = "video";
 
-      /* ========== BUSCAR SI NO ES LINK ========== */
+      /* 🔎 BUSCAR SI NO ES LINK */
       if (!query.startsWith("http")) {
         const search = await yts(query);
         if (!search.videos.length) {
@@ -66,32 +67,37 @@ module.exports = {
 
       await client.reply(
         m.chat,
-        "⏳ Descargando video, espera un momento...",
+        "📥 Descargando video...\n⏳ SonGokuBot está trabajando",
         m,
         global.channelInfo
       );
 
-      /* ========== PEDIR A LA API ========== */
+      /* 🌐 LLAMAR API (CON KEY) */
       const apiRes = await axios.get(API_URL, {
-        params: { url: videoUrl },
+        params: {
+          url: videoUrl,
+          apikey: API_KEY
+        },
         timeout: 120000
       });
 
-      const data = apiRes.data?.result;
-      if (!data?.mp4) throw new Error("API sin enlace mp4");
+      const data = apiRes.data?.data;
+      if (!apiRes.data?.status || !data?.url) {
+        throw new Error("API sin enlace de descarga");
+      }
 
       const safeTitle = (data.title || title)
         .replace(/[\\/:*?"<>|]/g, "")
         .slice(0, 60);
 
-      /* ========== TMP ========== */
+      /* 📂 TMP */
       const tmpDir = path.join(__dirname, "../../tmp");
       fs.mkdirSync(tmpDir, { recursive: true });
 
       filePath = path.join(tmpDir, `${Date.now()}_${userId}.mp4`);
 
-      /* ========== DESCARGA POR STREAM ========== */
-      const response = await axios.get(data.mp4, {
+      /* ⬇️ DESCARGA LOCAL (STREAM) */
+      const response = await axios.get(data.url, {
         responseType: "stream",
         timeout: 0
       });
@@ -104,30 +110,30 @@ module.exports = {
         writer.on("error", reject);
       });
 
-      /* ========== ENVIAR DOCUMENTO ========== */
+      /* 📤 ENVIAR COMO DOCUMENTO */
       await client.sendMessage(
         m.chat,
         {
           document: fs.readFileSync(filePath),
           mimetype: "video/mp4",
           fileName: `${safeTitle}.mp4`,
-          caption: `🎬 ${safeTitle}\n🤖 ${BOT_NAME}`
+          caption: `📁 *YOUTUBE MP4*\n🎬 ${safeTitle}\n🤖 ${BOT_NAME}`
         },
         { quoted: m, ...global.channelInfo }
       );
 
     } catch (err) {
-      console.error("YTDL ERROR:", err);
+      console.error("YTDOC ERROR:", err);
       cooldowns.delete(userId);
 
       await client.reply(
         m.chat,
-        "❌ Error al descargar o enviar el video.\n📦 Puede ser demasiado largo para WhatsApp.",
+        "❌ Error al descargar o enviar el video.\n📦 Puede ser muy pesado para WhatsApp.",
         m,
         global.channelInfo
       );
     } finally {
-      /* ========== LIMPIAR TMP ========== */
+      /* 🧹 LIMPIAR TMP */
       if (filePath && fs.existsSync(filePath)) {
         fs.unlinkSync(filePath);
       }
