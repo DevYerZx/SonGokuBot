@@ -32,9 +32,10 @@ module.exports = {
       const tmpDir = path.join(__dirname, "../../tmp");
       fs.mkdirSync(tmpDir, { recursive: true });
 
+      // 🔍 Buscar si no es URL
       if (!/^https?:\/\//.test(query)) {
         const search = await yts(query);
-        if (!search.videos?.length) {
+        if (!search.videos.length) {
           return client.reply(
             m.chat,
             "❌ No se encontraron resultados en YouTube.",
@@ -42,6 +43,7 @@ module.exports = {
             global.channelInfo
           );
         }
+
         const v = search.videos[0];
         videoUrl = v.url;
         title = v.title.replace(/[\\/:*?"<>|]/g, "").slice(0, 80);
@@ -56,23 +58,30 @@ module.exports = {
         global.channelInfo
       );
 
+      // 🌐 NUEVA API YTMP3
       const apiRes = await axios.get(
         `https://gawrgura-api.onrender.com/download/ytmp3?url=${encodeURIComponent(videoUrl)}`,
         { timeout: 120000 }
       );
 
-      if (!apiRes.data?.result) throw new Error("API inválida");
+      if (!apiRes.data?.status || !apiRes.data.result) {
+        throw new Error("API inválida");
+      }
+
+      const downloadUrl = apiRes.data.result;
 
       tempMp3 = path.join(tmpDir, `${Date.now()}.mp3`);
       finalMp3 = path.join(tmpDir, `${Date.now()}_final.mp3`);
 
-      const audioData = await axios.get(apiRes.data.result, {
+      // ⬇️ Descargar audio
+      const audioData = await axios.get(downloadUrl, {
         responseType: "arraybuffer",
         timeout: 300000
       });
 
       fs.writeFileSync(tempMp3, audioData.data);
 
+      // 🎚️ Convertir con FFmpeg (WhatsApp friendly)
       await new Promise((resolve, reject) => {
         exec(
           `ffmpeg -y -i "${tempMp3}" -codec:a libmp3lame -qscale:a 2 "${finalMp3}"`,
@@ -80,6 +89,7 @@ module.exports = {
         );
       });
 
+      // 📤 Enviar audio
       await client.sendMessage(
         m.chat,
         {
@@ -91,6 +101,7 @@ module.exports = {
       );
 
     } catch (err) {
+      console.error(err);
       await client.reply(
         m.chat,
         "❌ Ocurrió un error al procesar el audio.",
