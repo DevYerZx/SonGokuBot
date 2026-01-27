@@ -12,7 +12,7 @@ module.exports = {
   description: "Descarga videos de YouTube y los envía como documento",
 
   run: async (client, m, args) => {
-    let videoPath, thumbPath
+    let videoPath
 
     try {
       if (!args.length)
@@ -35,9 +35,10 @@ module.exports = {
         title = search.videos[0].title || title
       }
 
+      // 🔔 Notificación de descarga
       await client.reply(
         m.chat,
-        `📁 Preparando documento...\n⏳ ${BOT_NAME} está descargando`,
+        `📥 Descargando video...\n⏳ ${BOT_NAME} está trabajando`,
         m,
         global.channelInfo
       )
@@ -60,25 +61,7 @@ module.exports = {
       const tmpDir = path.join(__dirname, "../../tmp")
       fs.mkdirSync(tmpDir, { recursive: true })
 
-      // 🖼️ Miniatura
-      if (data.info?.thumbnail) {
-        const thumbRes = await axios.get(data.info.thumbnail, {
-          responseType: "arraybuffer"
-        })
-        thumbPath = path.join(tmpDir, `${Date.now()}_thumb.jpg`)
-        fs.writeFileSync(thumbPath, thumbRes.data)
-
-        await client.sendMessage(
-          m.chat,
-          {
-            image: fs.readFileSync(thumbPath),
-            caption: `🎬 *${safeTitle}*\n🤖 ${BOT_NAME}`
-          },
-          { quoted: m, ...global.channelInfo }
-        )
-      }
-
-      // ⬇️ Descargar video en local
+      // ⬇️ Descargar video a local
       const videoRes = await axios.get(data.url, {
         responseType: "arraybuffer",
         timeout: 300000
@@ -87,14 +70,13 @@ module.exports = {
       videoPath = path.join(tmpDir, `${Date.now()}.mp4`)
       fs.writeFileSync(videoPath, videoRes.data)
 
-      // 📤 Enviar como DOCUMENTO
+      // 📤 Enviar como DOCUMENTO (sin preview)
       await client.sendMessage(
         m.chat,
         {
           document: fs.readFileSync(videoPath),
           mimetype: "video/mp4",
-          fileName: `${safeTitle}.mp4`,
-          caption: `📁 *YOUTUBE MP4*\n🎬 ${safeTitle}\n🤖 ${BOT_NAME}`
+          fileName: `${safeTitle}.mp4`
         },
         { quoted: m, ...global.channelInfo }
       )
@@ -103,15 +85,15 @@ module.exports = {
       console.error(err)
       await client.reply(
         m.chat,
-        "❌ Error al descargar o enviar el documento.",
+        "❌ Error al descargar o enviar el archivo.",
         m,
         global.channelInfo
       )
     } finally {
       // 🧹 Limpiar TMP
       if (videoPath && fs.existsSync(videoPath)) fs.unlinkSync(videoPath)
-      if (thumbPath && fs.existsSync(thumbPath)) fs.unlinkSync(thumbPath)
     }
   }
 }
+
 
