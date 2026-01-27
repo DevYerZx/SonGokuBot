@@ -9,11 +9,9 @@ async function getFreshMp3(videoUrl) {
     `https://gawrgura-api.onrender.com/download/ytmp3?url=${encodeURIComponent(videoUrl)}`,
     { timeout: 15000 }
   );
-
   if (!api.data?.status || !api.data.result) {
     throw new Error("API inválida");
   }
-
   return api.data.result;
 }
 
@@ -26,12 +24,7 @@ module.exports = {
 
     try {
       if (!args.length) {
-        return client.reply(
-          m.chat,
-          "⚠️ Escribe el nombre o link del video.",
-          m,
-          global.channelInfo
-        );
+        return client.reply(m.chat, "⚠️ Escribe el nombre o link.", m);
       }
 
       const query = args.join(" ");
@@ -41,99 +34,66 @@ module.exports = {
       const tmpDir = path.join(__dirname, "../../tmp");
       if (!fs.existsSync(tmpDir)) fs.mkdirSync(tmpDir);
 
-      // 🔎 búsqueda
+      // 🔎 buscar
       if (!query.startsWith("http")) {
         const res = await yts(query);
         if (!res.videos.length) {
-          return client.reply(m.chat, "❌ No encontrado.", m, global.channelInfo);
+          return client.reply(m.chat, "❌ No encontrado.", m);
         }
         videoUrl = res.videos[0].url;
         title = res.videos[0].title.replace(/[\\/:*?"<>|]/g, "").slice(0, 80);
       }
 
-      await client.reply(
-        m.chat,
-        "⏳ Procesando audio…",
-        m,
-        global.channelInfo
-      );
+      await client.reply(m.chat, "⏳ Descargando audio…", m);
 
       rawPath = path.join(tmpDir, `${Date.now()}_raw.mp3`);
       finalPath = path.join(tmpDir, `${Date.now()}_final.mp3`);
 
-      let downloaded = false;
-      let lastError;
-
-      // 🔁 RETRY ANTI-410 (3 intentos)
-      for (let i = 1; i <= 3; i++) {
-        try {
-          const mp3Url = await getFreshMp3(videoUrl);
-
-          const resAudio = await axios.get(mp3Url, {
-            responseType: "stream",
-            timeout: 30000,
-            headers: {
-              "User-Agent": "Mozilla/5.0",
-              "Accept": "audio/*"
-            },
-            validateStatus: s => s < 500
-          });
-
-          if (resAudio.status !== 200) {
-            throw new Error(`HTTP ${resAudio.status}`);
-          }
-
-          const writer = fs.createWriteStream(rawPath);
-          resAudio.data.pipe(writer);
-
-          await new Promise((resolve, reject) => {
-            writer.on("finish", resolve);
-            writer.on("error", reject);
-          });
-
-          if (fs.statSync(rawPath).size < 120000) {
-            throw new Error("Archivo incompleto");
-          }
-
-          downloaded = true;
-          break;
-
-        } catch (err) {
-          lastError = err;
-          console.log(`🔁 Reintento ${i} falló`);
-          await new Promise(r => setTimeout(r, 1200));
-        }
-      }
-
-      if (!downloaded) throw lastError;
-
-      // 🛠️ FFmpeg (WhatsApp SAFE)
-      await new Promise((resolve, reject) => {
-        exec(
-          `ffmpeg -y -i "${rawPath}" -vn -acodec libmp3lame -ab 128k -ar 44100 "${finalPath}"`,
-          err => (err ? reject(err) : resolve())
-        );
+      // ⬇️ descargar (1 intento rápido)
+      const mp3Url = await getFreshMp3(videoUrl);
+      const resAudio = await axios.get(mp3Url, {
+        responseType: "arraybuffer", // 🚀 MÁS RÁPIDO
+        timeout: 30000,
+        headers: { "User-Agent": "Mozilla/5.0" }
       });
 
-      // 📤 enviar audio normal
+      fs.writeFileSync(rawPath, resAudio.data);
+
+      let audioBuffer;
+
+      // 🧪 probar si WhatsApp lo acepta SIN ffmpeg
+      try {
+        audioBuffer = fs.readFileSync(rawPath);
+        if (audioBuffer.length < 150000) throw "muy pequeño";
+      } catch {
+        // 🛠️ fallback FFmpeg SOLO si falla
+        await new Promise((resolve, reject) => {
+          exec(
+            `ffmpeg -y -i "${rawPath}" -vn -acodec libmp3lame -ab 96k -ar 44100 "${finalPath}"`,
+            err => (err ? reject(err) : resolve())
+          );
+        });
+        audioBuffer = fs.readFileSync(finalPath);
+      }
+
+      // 📤 enviar (BUFFER = más rápido)
       await client.sendMessage(
         m.chat,
         {
-          audio: { url: finalPath },
+          audio: audioBuffer,
           mimetype: "audio/mpeg",
           ptt: false,
           fileName: `${title}.mp3`
         },
-        { quoted: m, ...global.channelInfo }
+        { quoted: m }
       );
 
     } catch (err) {
       console.error("YTAUDIO:", err.message);
       await client.reply(
         m.chat,
-        "❌ No se pudo descargar el audio.\nIntenta otra canción.",
-        m,
-        global.channelInfo
+        "❌ Error al procesar el audio.",
+        m
       );
     } finally {
       if (rawPath && fs.existsSync(rawPath)) fs.unlinkSync(rawPath);
