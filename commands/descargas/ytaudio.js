@@ -31,7 +31,7 @@ async function descargarMp3Stream(url, filePath) {
 module.exports = {
   command: ["ytaudio", "yta"],
   categoria: "descarga",
-  description: "Descarga audio de YouTube (estable y sin errores)",
+  description: "Descarga audio de YouTube sin errores (estable)",
 
   run: async (client, m, args) => {
     let filePath;
@@ -89,20 +89,20 @@ module.exports = {
 
       filePath = path.join(tmpDir, `${Date.now()}.mp3`);
 
-      // ⬇️ Descargar correctamente
+      // ⬇️ Descargar MP3 correctamente
       await descargarMp3Stream(apiRes.data.result, filePath);
 
-      // 📏 Verificar archivo válido
+      // 📏 Verificar tamaño mínimo
       const stats = fs.statSync(filePath);
       if (stats.size < 50_000) {
-        throw new Error("Archivo MP3 incompleto");
+        throw new Error("MP3 incompleto");
       }
 
-      // 📤 ENVIAR COMO DOCUMENTO (modo más estable)
+      // 📤 ENVIAR AUDIO DESDE RUTA (FORMA CORRECTA)
       await client.sendMessage(
         m.chat,
         {
-          document: fs.readFileSync(filePath),
+          audio: { url: filePath }, // 👈 CLAVE
           mimetype: "audio/mpeg",
           fileName: `${title}.mp3`
         },
@@ -118,12 +118,10 @@ module.exports = {
         global.channelInfo
       );
     } finally {
-      // 🧹 Limpiar archivo
+      // 🧹 Eliminar archivo
       if (filePath && fs.existsSync(filePath)) {
         fs.unlinkSync(filePath);
       }
     }
   }
 };
-
-
