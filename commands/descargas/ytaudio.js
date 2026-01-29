@@ -24,7 +24,7 @@ async function getMp3Url(videoUrl) {
 module.exports = {
   command: ["ytaudio", "yta"],
   categoria: "descarga",
-  description: "Descarga audio de YouTube (compatible con WhatsApp)",
+  description: "Descarga audio de YouTube y lo envía como nota de voz",
 
   run: async (client, m, args) => {
     const userId = m.sender;
@@ -36,7 +36,7 @@ module.exports = {
       if (remaining > 0) {
         return client.reply(
           m.chat,
-          `⏳ Espera *${Math.ceil(remaining / 1000)}s* antes de usar este comando.`,
+          `⏳ Espera *${Math.ceil(remaining / 1000)}s* antes de volver a usar el comando.`,
           m,
           global.channelInfo
         );
@@ -79,13 +79,15 @@ module.exports = {
         title = v.title.replace(/[\\/:*?"<>|]/g, "").slice(0, 70);
       }
 
+      // 🎨 MENSAJE PREMIUM
       await client.reply(
         m.chat,
-`╭━━━〔 🎵 𝐘𝐓 𝐀𝐔𝐃𝐈𝐎 〕━━━╮
-┃ 🔍 Procesando audio…
-┃ 🎶 ${title}
+`┏━━━ 🎙️ 𝗡𝗢𝗧𝗔 𝗗𝗘 𝗩𝗢𝗭 ━━━┓
+┃ 🎵 ${title}
+┃ ⏳ Convirtiendo audio…
+┃ ⚡ Optimizado para WhatsApp
 ┃ 🤖 ${BOT_NAME}
-╰━━━━━━━━━━━━━━━━━━━━╯`,
+┗━━━━━━━━━━━━━━━━━━━━━━━┛`,
         m,
         global.channelInfo
       );
@@ -129,27 +131,21 @@ module.exports = {
 
       if (!success) throw lastErr;
 
-      // ⚡ FFmpeg optimizado WhatsApp
+      // ⚡ FFmpeg optimizado para NOTA DE VOZ
       await new Promise((resolve, reject) => {
         exec(
-          `ffmpeg -y -loglevel error -i "${rawMp3}" -vn -ac 2 -ar 44100 -b:a 96k "${finalMp3}"`,
+          `ffmpeg -y -loglevel error -i "${rawMp3}" -vn -ac 1 -ar 44100 -b:a 64k "${finalMp3}"`,
           err => (err ? reject(err) : resolve())
         );
       });
 
-      // 📤 Enviar audio (NO como nota de voz)
+      // 🎙️ ENVIAR COMO NOTA DE VOZ
       await client.sendMessage(
         m.chat,
         {
           audio: fs.readFileSync(finalMp3),
           mimetype: "audio/mpeg",
-          fileName: `${title}.mp3`,
-          caption:
-`╭━━━〔 🎧 𝐀𝐔𝐃𝐈𝐎 𝐘𝐓 〕━━━╮
-┃ 🎵 ${title}
-┃ 📦 MP3 · 96kbps
-┃ 🤖 ${BOT_NAME}
-╰━━━━━━━━━━━━━━━━━━━━╯`
+          ptt: true
         },
         { quoted: m, ...global.channelInfo }
       );
@@ -159,7 +155,11 @@ module.exports = {
       cooldowns.delete(userId);
       await client.reply(
         m.chat,
-        "❌ *No se pudo descargar el audio.*\nIntenta con otro video.",
+`┏━━━ ❌ 𝗘𝗥𝗥𝗢𝗥 ━━━┓
+┃ No se pudo enviar la nota de voz
+┃ 🔁 Intenta con otro video
+┃ 🤖 ${BOT_NAME}
+┗━━━━━━━━━━━━━━━━━━┛`,
         m,
         global.channelInfo
       );
