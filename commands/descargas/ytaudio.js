@@ -23,7 +23,7 @@ async function getMp3Url(videoUrl) {
 }
 
 module.exports = {
-  command: ["yta", "ytaudio"],
+  command: ["ytaudio"],
   categoria: "descarga",
   description: "Descarga audio MP3 de YouTube en buena calidad",
 
