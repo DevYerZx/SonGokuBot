@@ -29,7 +29,7 @@ async function getMp3Url(videoUrl) {
 }
 
 module.exports = {
-  command: ["ytdl"],
+  command: ["ytdlmp3"],
   categoria: "descarga",
   description: "Descarga música de YouTube como nota de voz",
 
@@ -93,7 +93,7 @@ module.exports = {
       // 🔔 NOTIFICACIÓN (solo texto)
       await client.reply(
         m.chat,
-`🎙️ *NOTA DE VOZ*
+`🖕 *Descargando*
 🎵 ${title}
 ⏳ Procesando…`,
         m,
