@@ -2,11 +2,12 @@ const axios = require("axios")
 const yts = require("yt-search")
 const fs = require("fs")
 const path = require("path")
+const { exec } = require("child_process")
 
 module.exports = {
   command: ["ytdl"],
   categoria: "descarga",
-  description: "Descarga música y la envía como nota de voz",
+  description: "Descarga música y la envía como nota de voz (ffmpeg)",
 
   run: async (client, m, args) => {
     try {
@@ -32,23 +33,20 @@ module.exports = {
         return m.reply("❌ Audio no disponible")
       }
 
-      // 📁 ruta temporal
-      const audioPath = path.join(
-        __dirname,
-        `temp_${Date.now()}.mp3`
-      )
+      // 📁 rutas temporales
+      const id = Date.now()
+      const mp3Path = path.join(__dirname, `temp_${id}.mp3`)
+      const opusPath = path.join(__dirname, `temp_${id}.opus`)
 
-      // ⬇️ descargar archivo
+      // ⬇️ descargar MP3
       const response = await axios({
         method: "GET",
         url: data.result.mp3,
         responseType: "stream",
-        headers: {
-          "User-Agent": "Mozilla/5.0"
-        }
+        headers: { "User-Agent": "Mozilla/5.0" }
       })
 
-      const writer = fs.createWriteStream(audioPath)
+      const writer = fs.createWriteStream(mp3Path)
       response.data.pipe(writer)
 
       await new Promise((resolve, reject) => {
@@ -56,19 +54,31 @@ module.exports = {
         writer.on("error", reject)
       })
 
-      // 🎙️ enviar como NOTA DE VOZ
+      // 🎛️ convertir con ffmpeg a OPUS (nota de voz real)
+      await new Promise((resolve, reject) => {
+        exec(
+          `ffmpeg -y -i "${mp3Path}" -vn -c:a libopus -b:a 48k "${opusPath}"`,
+          (err) => {
+            if (err) reject(err)
+            else resolve()
+          }
+        )
+      })
+
+      // 🎙️ enviar nota de voz
       await client.sendMessage(
         m.chat,
         {
-          audio: fs.readFileSync(audioPath),
-          mimetype: "audio/mpeg",
+          audio: fs.readFileSync(opusPath),
+          mimetype: "audio/ogg; codecs=opus",
           ptt: true
         },
         { quoted: m }
       )
 
-      // 🧹 borrar archivo
-      fs.unlinkSync(audioPath)
+      // 🧹 limpiar archivos
+      fs.unlinkSync(mp3Path)
+      fs.unlinkSync(opusPath)
 
     } catch (err) {
       console.error(err)
