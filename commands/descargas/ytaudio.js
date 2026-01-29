@@ -24,7 +24,7 @@ async function getMp3Url(videoUrl) {
 module.exports = {
   command: ["ytaudio", "yta"],
   categoria: "descarga",
-  description: "Descarga audio de YouTube y lo envía como nota de voz",
+  description: "Descarga audio de YouTube en MP3",
 
   run: async (client, m, args) => {
     const userId = m.sender;
@@ -79,15 +79,15 @@ module.exports = {
         title = v.title.replace(/[\\/:*?"<>|]/g, "").slice(0, 70);
       }
 
-      // 🎨 MENSAJE PREMIUM
+      // 🎨 MENSAJE DE PROCESO
       await client.reply(
         m.chat,
-`┏━━━ 🎙️ 𝗡𝗢𝗧𝗔 𝗗𝗘 𝗩𝗢𝗭 ━━━┓
-┃ 🎵 ${title}
-┃ ⏳ Convirtiendo audio…
-┃ ⚡ Optimizado para WhatsApp
-┃ 🤖 ${BOT_NAME}
-┗━━━━━━━━━━━━━━━━━━━━━━━┛`,
+`╭────── 🎧 YT AUDIO ──────╮
+│ 🎵 ${title}
+│ ⏳ Descargando y convirtiendo
+│ ⚡ MP3 optimizado
+│ 🤖 ${BOT_NAME}
+╰────────────────────────╯`,
         m,
         global.channelInfo
       );
@@ -131,21 +131,28 @@ module.exports = {
 
       if (!success) throw lastErr;
 
-      // ⚡ FFmpeg optimizado para NOTA DE VOZ
+      // ⚡ FFmpeg optimizado para MP3
       await new Promise((resolve, reject) => {
         exec(
-          `ffmpeg -y -loglevel error -i "${rawMp3}" -vn -ac 1 -ar 44100 -b:a 64k "${finalMp3}"`,
+          `ffmpeg -y -loglevel error -i "${rawMp3}" -vn -ac 2 -ar 44100 -b:a 96k "${finalMp3}"`,
           err => (err ? reject(err) : resolve())
         );
       });
 
-      // 🎙️ ENVIAR COMO NOTA DE VOZ
+      // 📤 ENVIAR MP3 NORMAL
       await client.sendMessage(
         m.chat,
         {
           audio: fs.readFileSync(finalMp3),
           mimetype: "audio/mpeg",
-          ptt: true
+          fileName: `${title}.mp3`,
+          caption:
+`╭────── 🎶 AUDIO LISTO ──────╮
+│ 🎵 ${title}
+│ 📦 MP3 · 96kbps
+│ ⚡ Alta compatibilidad
+│ 🤖 ${BOT_NAME}
+╰───────────────────────────╯`
         },
         { quoted: m, ...global.channelInfo }
       );
@@ -155,11 +162,11 @@ module.exports = {
       cooldowns.delete(userId);
       await client.reply(
         m.chat,
-`┏━━━ ❌ 𝗘𝗥𝗥𝗢𝗥 ━━━┓
-┃ No se pudo enviar la nota de voz
-┃ 🔁 Intenta con otro video
-┃ 🤖 ${BOT_NAME}
-┗━━━━━━━━━━━━━━━━━━┛`,
+`╭────── ❌ ERROR ──────╮
+│ No se pudo descargar el audio
+│ 🔁 Intenta con otro video
+│ 🤖 ${BOT_NAME}
+╰─────────────────────╯`,
         m,
         global.channelInfo
       );
