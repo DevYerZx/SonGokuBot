@@ -1,10 +1,12 @@
 const axios = require("axios")
 const yts = require("yt-search")
+const fs = require("fs")
+const path = require("path")
 
 module.exports = {
   command: ["ytdl"],
   categoria: "descarga",
-  description: "Descarga música como nota de voz",
+  description: "Descarga música y la envía como nota de voz",
 
   run: async (client, m, args) => {
     try {
@@ -20,41 +22,57 @@ module.exports = {
       }
 
       const video = search.videos[0]
+      await m.reply("⬇️ Descargando audio...")
 
-      await m.reply("🎙️ Grabando nota de voz...")
-
+      // 📡 API
       const api = `https://gawrgura-api.onrender.com/download/ytdl?url=${encodeURIComponent(video.url)}`
-      const { data } = await axios.get(api, {
-        headers: {
-          "User-Agent": "Mozilla/5.0",
-          "Accept": "*/*"
-        }
-      })
+      const { data } = await axios.get(api)
 
       if (!data.status || !data.result?.mp3) {
         return m.reply("❌ Audio no disponible")
       }
 
-      // 🔥 ENVÍO COMO NOTA DE VOZ (FORMA CORRECTA)
+      // 📁 ruta temporal
+      const audioPath = path.join(
+        __dirname,
+        `temp_${Date.now()}.mp3`
+      )
+
+      // ⬇️ descargar archivo
+      const response = await axios({
+        method: "GET",
+        url: data.result.mp3,
+        responseType: "stream",
+        headers: {
+          "User-Agent": "Mozilla/5.0"
+        }
+      })
+
+      const writer = fs.createWriteStream(audioPath)
+      response.data.pipe(writer)
+
+      await new Promise((resolve, reject) => {
+        writer.on("finish", resolve)
+        writer.on("error", reject)
+      })
+
+      // 🎙️ enviar como NOTA DE VOZ
       await client.sendMessage(
         m.chat,
         {
-          audio: {
-            url: data.result.mp3
-          },
+          audio: fs.readFileSync(audioPath),
           mimetype: "audio/mpeg",
-          ptt: true,
-          contextInfo: {
-            forwardingScore: 999,
-            isForwarded: false
-          }
+          ptt: true
         },
         { quoted: m }
       )
 
+      // 🧹 borrar archivo
+      fs.unlinkSync(audioPath)
+
     } catch (err) {
       console.error(err)
-      m.reply("❌ Error al enviar la nota de voz")
+      m.reply("❌ Error al procesar el audio")
     }
   }
 }
