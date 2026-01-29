@@ -4,7 +4,6 @@ const axios = require("axios");
 const yts = require("yt-search");
 const { exec } = require("child_process");
 
-const BOT_NAME = "SonGokuBot";
 const API_URL = "https://gawrgura-api.onrender.com/download/ytdl";
 
 // ⏳ COOLDOWN
@@ -30,9 +29,9 @@ async function getMp3Url(videoUrl) {
 }
 
 module.exports = {
-  command: ["ytdlmp3"],
+  command: ["ytdl"],
   categoria: "descarga",
-  description: "Descarga música de YouTube ",
+  description: "Descarga música de YouTube como nota de voz",
 
   run: async (client, m, args) => {
     const userId = m.sender;
@@ -70,7 +69,7 @@ module.exports = {
       const tmpDir = path.join(__dirname, "../../tmp");
       fs.mkdirSync(tmpDir, { recursive: true });
 
-      // 🔍 Buscar en YouTube si no es link
+      // 🔍 Buscar en YouTube
       if (!/^https?:\/\//.test(query)) {
         const search = await yts(query);
         if (!search.videos.length) {
@@ -91,9 +90,10 @@ module.exports = {
         videoUrl = query;
       }
 
+      // 🔔 NOTIFICACIÓN (solo texto)
       await client.reply(
         m.chat,
-`🖕 *Descargando*
+`🎙️ *NOTA DE VOZ*
 🎵 ${title}
 ⏳ Procesando…`,
         m,
@@ -104,7 +104,7 @@ module.exports = {
       finalMp3 = path.join(tmpDir, `${Date.now()}_final.mp3`);
       voiceOgg = path.join(tmpDir, `${Date.now()}_voice.ogg`);
 
-      // 🔁 Descargar MP3 (3 intentos)
+      // ⬇️ Descargar MP3 (reintentos)
       let ok = false;
       for (let i = 0; i < 3; i++) {
         try {
@@ -137,7 +137,7 @@ module.exports = {
 
       if (!ok) throw new Error("Fallo descarga");
 
-      // 🎚️ Normalizar MP3
+      // 🎚️ MP3 normalizado
       await new Promise((resolve, reject) => {
         exec(
           `ffmpeg -y -loglevel error -i "${rawMp3}" -vn -ac 2 -ar 44100 -b:a 128k "${finalMp3}"`,
@@ -145,7 +145,7 @@ module.exports = {
         );
       });
 
-      // 🎙️ Convertir a NOTA DE VOZ (OGG OPUS)
+      // 🎙️ OGG OPUS (nota de voz)
       await new Promise((resolve, reject) => {
         exec(
           `ffmpeg -y -loglevel error -i "${finalMp3}" -ac 1 -ar 48000 -c:a libopus -b:a 64k "${voiceOgg}"`,
@@ -153,7 +153,7 @@ module.exports = {
         );
       });
 
-      // 📤 Enviar nota de voz
+      // 📤 ENVIAR AUDIO (SIN TEXTO)
       await client.sendMessage(
         m.chat,
         {
