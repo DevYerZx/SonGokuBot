@@ -11,7 +11,7 @@ const cooldowns = new Map();
 const COOLDOWN_TIME = 15 * 1000; // 15 segundos
 
 module.exports = {
-  command: ["ytvideo", "videoyt", "ytdl"],
+  command: ["ytvideo"],
   categoria: "descarga",
   description: "Descarga y envía solo el video de YouTube",
 
