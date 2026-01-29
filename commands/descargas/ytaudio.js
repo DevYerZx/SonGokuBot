@@ -5,6 +5,7 @@ const yts = require("yt-search");
 const { exec } = require("child_process");
 
 const BOT_NAME = "SonGokuBot";
+const API_URL = "https://gawrgura-api.onrender.com/download/ytmp3";
 
 // ⏳ COOLDOWN
 const cooldowns = new Map();
@@ -14,7 +15,7 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 async function getMp3Url(videoUrl) {
   const res = await axios.get(
-    `https://gawrgura-api.onrender.com/download/ytmp3?url=${encodeURIComponent(videoUrl)}`,
+    `${API_URL}?url=${encodeURIComponent(videoUrl)}`,
     { timeout: 20000 }
   );
   if (!res.data?.result) throw new Error("API inválida");
@@ -22,9 +23,9 @@ async function getMp3Url(videoUrl) {
 }
 
 module.exports = {
-  command: ["ytaudio", "yta"],
+  command: ["yta", "ytaudio"],
   categoria: "descarga",
-  description: "Descarga audio de YouTube (compatible con WhatsApp)",
+  description: "Descarga audio MP3 de YouTube en buena calidad",
 
   run: async (client, m, args) => {
     const userId = m.sender;
@@ -32,11 +33,11 @@ module.exports = {
 
     // 🔒 Cooldown
     if (cooldowns.has(userId)) {
-      const remaining = cooldowns.get(userId) - Date.now();
-      if (remaining > 0) {
+      const wait = cooldowns.get(userId) - Date.now();
+      if (wait > 0) {
         return client.reply(
           m.chat,
-          `⏳ Espera *${Math.ceil(remaining / 1000)}s* antes de usar este comando.`,
+          `⏳ Espera *${Math.ceil(wait / 1000)}s*`,
           m,
           global.channelInfo
         );
@@ -49,7 +50,7 @@ module.exports = {
         cooldowns.delete(userId);
         return client.reply(
           m.chat,
-          "❌ *Ingresa un nombre o enlace de YouTube.*",
+          "❌ Escribe un *nombre* o *link* de YouTube",
           m,
           global.channelInfo
         );
@@ -62,30 +63,31 @@ module.exports = {
       const tmpDir = path.join(__dirname, "../../tmp");
       fs.mkdirSync(tmpDir, { recursive: true });
 
-      // 🔎 Buscar si no es URL
+      // 🔍 Buscar si no es link
       if (!/^https?:\/\//.test(query)) {
         const search = await yts(query);
         if (!search.videos.length) {
           cooldowns.delete(userId);
           return client.reply(
             m.chat,
-            "❌ *No se encontraron resultados.*",
+            "❌ No se encontró el video",
             m,
             global.channelInfo
           );
         }
-        const v = search.videos[0];
-        videoUrl = v.url;
-        title = v.title.replace(/[\\/:*?"<>|]/g, "").slice(0, 70);
+        videoUrl = search.videos[0].url;
+        title = search.videos[0].title
+          .replace(/[\\/:*?"<>|]/g, "")
+          .slice(0, 60);
       }
 
+      // 🎧 Mensaje corto
       await client.reply(
         m.chat,
-`╭━━━〔 🎵 𝐘𝐓 𝐀𝐔𝐃𝐈𝐎 〕━━━╮
-┃ 🔍 Procesando audio…
-┃ 🎶 ${title}
-┃ 🤖 ${BOT_NAME}
-╰━━━━━━━━━━━━━━━━━━━━╯`,
+`╭─🎧 YT MP3
+│ 🎵 ${title}
+│ ⏳ Procesando…
+╰────────────`,
         m,
         global.channelInfo
       );
@@ -93,14 +95,11 @@ module.exports = {
       rawMp3 = path.join(tmpDir, `${Date.now()}_raw.mp3`);
       finalMp3 = path.join(tmpDir, `${Date.now()}_final.mp3`);
 
-      let success = false;
-      let lastErr;
-
-      // 🔁 Retry (links expiran)
-      for (let i = 1; i <= 3; i++) {
+      // 🔁 Retry automático
+      let ok = false, lastErr;
+      for (let i = 0; i < 3; i++) {
         try {
           const mp3Url = await getMp3Url(videoUrl);
-
           const res = await axios.get(mp3Url, {
             responseType: "stream",
             timeout: 60000,
@@ -110,16 +109,16 @@ module.exports = {
           const writer = fs.createWriteStream(rawMp3);
           res.data.pipe(writer);
 
-          await new Promise((resolve, reject) => {
-            writer.on("finish", resolve);
-            writer.on("error", reject);
+          await new Promise((r, e) => {
+            writer.on("finish", r);
+            writer.on("error", e);
           });
 
           if (fs.statSync(rawMp3).size < 120000) {
             throw new Error("Archivo incompleto");
           }
 
-          success = true;
+          ok = true;
           break;
         } catch (e) {
           lastErr = e;
@@ -127,17 +126,17 @@ module.exports = {
         }
       }
 
-      if (!success) throw lastErr;
+      if (!ok) throw lastErr;
 
-      // ⚡ FFmpeg optimizado WhatsApp
+      // 🎚️ MP3 128kbps REAL
       await new Promise((resolve, reject) => {
         exec(
-          `ffmpeg -y -loglevel error -i "${rawMp3}" -vn -ac 2 -ar 44100 -b:a 96k "${finalMp3}"`,
+          `ffmpeg -y -loglevel error -i "${rawMp3}" -vn -ac 2 -ar 44100 -b:a 128k "${finalMp3}"`,
           err => (err ? reject(err) : resolve())
         );
       });
 
-      // 📤 Enviar audio (NO como nota de voz)
+      // 📤 Enviar MP3
       await client.sendMessage(
         m.chat,
         {
@@ -145,21 +144,21 @@ module.exports = {
           mimetype: "audio/mpeg",
           fileName: `${title}.mp3`,
           caption:
-`╭━━━〔 🎧 𝐀𝐔𝐃𝐈𝐎 𝐘𝐓 〕━━━╮
-┃ 🎵 ${title}
-┃ 📦 MP3 · 96kbps
-┃ 🤖 ${BOT_NAME}
-╰━━━━━━━━━━━━━━━━━━━━╯`
+`╭─🎶 AUDIO MP3
+│ 🎵 ${title}
+│ 🎚️ 128kbps
+│ 🤖 ${BOT_NAME}
+╰────────────`
         },
         { quoted: m, ...global.channelInfo }
       );
 
     } catch (err) {
-      console.error("YTAUDIO ERROR:", err.message);
+      console.error("YTA ERROR:", err.message);
       cooldowns.delete(userId);
       await client.reply(
         m.chat,
-        "❌ *No se pudo descargar el audio.*\nIntenta con otro video.",
+        "❌ Error al descargar el audio",
         m,
         global.channelInfo
       );
