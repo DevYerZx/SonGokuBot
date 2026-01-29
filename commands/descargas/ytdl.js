@@ -4,6 +4,7 @@ const yts = require("yt-search")
 module.exports = {
   command: ["ytdl"],
   categoria: "descarga",
+  description: "Descarga música de YouTube como nota de voz",
 
   run: async (client, m, args) => {
     try {
@@ -11,7 +12,7 @@ module.exports = {
         return m.reply("❌ Usa:\n.ytdl chaparrita yeri mua")
       }
 
-      await m.reply("🎵 Buscando música...")
+      await m.reply("🎧 Buscando música...")
 
       const search = await yts(args.join(" "))
       if (!search.videos.length) {
@@ -20,7 +21,7 @@ module.exports = {
 
       const video = search.videos[0]
 
-      await m.reply(`⬇️ Descargando:\n🎶 *${video.title}*`)
+      await m.reply(`🎙️ Grabando audio...\n🎶 *${video.title}*`)
 
       const api = `https://gawrgura-api.onrender.com/download/ytdl?url=${encodeURIComponent(video.url)}`
       const { data } = await axios.get(api)
@@ -29,19 +30,20 @@ module.exports = {
         return m.reply("❌ Audio no disponible")
       }
 
+      // ✅ NOTA DE VOZ (PTT)
       await client.sendMessage(
         m.chat,
         {
           audio: { url: data.result.mp3 },
           mimetype: "audio/mpeg",
-          caption: `🎧 ${data.result.title}`
+          ptt: true
         },
         { quoted: m }
       )
 
-    } catch (err) {
-      console.error(err)
-      m.reply("❌ Error al enviar la música")
+    } catch (e) {
+      console.error(e)
+      m.reply("❌ Error al enviar la nota de voz")
     }
   }
 }
