@@ -29,7 +29,7 @@ async function getMp4Url(videoUrl) {
 }
 
 module.exports = {
-  command: ["ytdl"],
+  command: ["ytdlmp4"],
   categoria: "descarga",
   description: "Descarga video de YouTube",
 
