@@ -30,9 +30,9 @@ async function getMp3Url(videoUrl) {
 }
 
 module.exports = {
-  command: ["ytdl"],
+  command: ["ytdlmp3"],
   categoria: "descarga",
-  description: "Descarga música de YouTube y la envía como nota de voz",
+  description: "Descarga música de YouTube ",
 
   run: async (client, m, args) => {
     const userId = m.sender;
@@ -42,7 +42,12 @@ module.exports = {
     if (cooldowns.has(userId)) {
       const wait = cooldowns.get(userId) - Date.now();
       if (wait > 0) {
-        return m.reply(`⏳ Espera *${Math.ceil(wait / 1000)}s*`);
+        return client.reply(
+          m.chat,
+          `⏳ Espera *${Math.ceil(wait / 1000)}s*`,
+          m,
+          global.channelInfo
+        );
       }
     }
     cooldowns.set(userId, Date.now() + COOLDOWN_TIME);
@@ -50,7 +55,12 @@ module.exports = {
     try {
       if (!args.length) {
         cooldowns.delete(userId);
-        return m.reply("❌ Escribe el nombre de la canción");
+        return client.reply(
+          m.chat,
+          "❌ Escribe el nombre de la canción",
+          m,
+          global.channelInfo
+        );
       }
 
       const query = args.join(" ");
@@ -60,13 +70,19 @@ module.exports = {
       const tmpDir = path.join(__dirname, "../../tmp");
       fs.mkdirSync(tmpDir, { recursive: true });
 
-      // 🔍 Buscar en YouTube
+      // 🔍 Buscar en YouTube si no es link
       if (!/^https?:\/\//.test(query)) {
         const search = await yts(query);
         if (!search.videos.length) {
           cooldowns.delete(userId);
-          return m.reply("❌ No se encontró el video");
+          return client.reply(
+            m.chat,
+            "❌ No se encontró el video",
+            m,
+            global.channelInfo
+          );
         }
+
         videoUrl = search.videos[0].url;
         title = search.videos[0].title
           .replace(/[\\/:*?"<>|]/g, "")
@@ -75,17 +91,20 @@ module.exports = {
         videoUrl = query;
       }
 
-      await m.reply(
-`🎙️ *NOTA DE VOZ*
+      await client.reply(
+        m.chat,
+`🖕 *Descargando*
 🎵 ${title}
-⏳ Procesando…`
+⏳ Procesando…`,
+        m,
+        global.channelInfo
       );
 
       rawMp3 = path.join(tmpDir, `${Date.now()}_raw.mp3`);
       finalMp3 = path.join(tmpDir, `${Date.now()}_final.mp3`);
       voiceOgg = path.join(tmpDir, `${Date.now()}_voice.ogg`);
 
-      // 🔁 Descargar MP3 (reintentos)
+      // 🔁 Descargar MP3 (3 intentos)
       let ok = false;
       for (let i = 0; i < 3; i++) {
         try {
@@ -118,7 +137,7 @@ module.exports = {
 
       if (!ok) throw new Error("Fallo descarga");
 
-      // 🎚️ Convertir a MP3 limpio
+      // 🎚️ Normalizar MP3
       await new Promise((resolve, reject) => {
         exec(
           `ffmpeg -y -loglevel error -i "${rawMp3}" -vn -ac 2 -ar 44100 -b:a 128k "${finalMp3}"`,
@@ -142,13 +161,19 @@ module.exports = {
           mimetype: "audio/ogg; codecs=opus",
           ptt: true
         },
-        { quoted: m }
+        { quoted: m, ...global.channelInfo }
       );
 
     } catch (err) {
       console.error("YTDL ERROR:", err.message);
       cooldowns.delete(userId);
-      m.reply("❌ Error al procesar la nota de voz");
+
+      await client.reply(
+        m.chat,
+        "❌ Error al procesar la nota de voz",
+        m,
+        global.channelInfo
+      );
     } finally {
       if (rawMp3 && fs.existsSync(rawMp3)) fs.unlinkSync(rawMp3);
       if (finalMp3 && fs.existsSync(finalMp3)) fs.unlinkSync(finalMp3);
