@@ -4,14 +4,13 @@ const yts = require("yt-search")
 module.exports = {
   command: ["ytdl", "yt"],
   categoria: "descarga",
-  description: "Busca en YouTube y envía siempre como video",
+  description: "Busca y descarga YouTube (mp3 / mp4)",
 
   run: async (client, m, args) => {
     try {
       if (!args.length) {
         return m.reply(
-          "❌ Escribe qué quieres buscar\n\n" +
-          "📌 Ejemplo:\n" +
+          "❌ Uso correcto:\n\n" +
           ".ytdl mp3 beele santorini\n" +
           ".ytdl mp4 beele santorini"
         )
@@ -25,7 +24,7 @@ module.exports = {
         query = args.slice(1).join(" ")
       }
 
-      if (!query) return m.reply("❌ Escribe el nombre del video")
+      if (!query) return m.reply("❌ Escribe qué buscar")
 
       m.reply("🔎 Buscando en YouTube...")
 
@@ -35,32 +34,43 @@ module.exports = {
       }
 
       const video = search.videos[0]
-      const ytUrl = video.url
 
-      m.reply(`⬇️ Descargando:\n🎵 *${video.title}*`)
+      m.reply(`⬇️ Descargando:\n🎶 *${video.title}*`)
 
-      const api = `https://gawrgura-api.onrender.com/download/ytdl?url=${encodeURIComponent(ytUrl)}`
+      const api = `https://gawrgura-api.onrender.com/download/ytdl?url=${encodeURIComponent(video.url)}`
       const res = await axios.get(api)
 
       if (!res.data.status) {
-        return m.reply("❌ Error al descargar")
+        return m.reply("❌ Error en la descarga")
       }
 
       const result = res.data.result
-      const link = tipo === "mp3" ? result.mp3 : result.mp4
 
-      if (!link) return m.reply("❌ Archivo no disponible")
+      // ✅ MP3 → AUDIO
+      if (tipo === "mp3") {
+        if (!result.mp3) return m.reply("❌ Audio no disponible")
 
-      // 📹 SIEMPRE ENVIAR COMO VIDEO
-      await client.sendMessage(m.chat, {
-        video: { url: link },
-        mimetype: "video/mp4",
-        caption: `🎶 *${result.title}*\n\n🤖 ${global.BOT_NAME || "SonGokuBot"}`
-      }, { quoted: m })
+        await client.sendMessage(m.chat, {
+          audio: { url: result.mp3 },
+          mimetype: "audio/mpeg",
+          caption: `🎵 ${result.title}`
+        }, { quoted: m })
+      }
 
-    } catch (err) {
-      console.error(err)
-      m.reply("❌ Ocurrió un error inesperado")
+      // ✅ MP4 → VIDEO
+      if (tipo === "mp4") {
+        if (!result.mp4) return m.reply("❌ Video no disponible")
+
+        await client.sendMessage(m.chat, {
+          video: { url: result.mp4 },
+          mimetype: "video/mp4",
+          caption: `🎬 ${result.title}`
+        }, { quoted: m })
+      }
+
+    } catch (e) {
+      console.error(e)
+      m.reply("❌ Error inesperado")
     }
   }
 }
