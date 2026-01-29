@@ -10,7 +10,7 @@ module.exports = {
     }
 
     const query = args.join(" ")
-    m.reply("⏳ Buscando tu video...")
+    await m.reply("⏳ Buscando tu video...")
 
     const search = await yts(query)
     if (!search.videos.length) {
@@ -19,18 +19,18 @@ module.exports = {
 
     const video = search.videos[0]
 
-    const listMessage = {
+    const menu = {
       text:
         `🎶 *${video.title}*\n` +
         `👤 ${video.author.name}\n` +
         `⏱ ${video.timestamp}\n\n` +
-        `👇 Elige formato`,
+        `👇 Selecciona formato`,
       footer: "🤖 SonGokuBot",
       title: "YouTube Downloader",
-      buttonText: "📥 Descargar",
+      buttonText: "📥 Elegir formato",
       sections: [
         {
-          title: "Formatos disponibles",
+          title: "Opciones",
           rows: [
             {
               title: "🎵 Audio MP3",
@@ -47,6 +47,6 @@ module.exports = {
       ]
     }
 
-    await client.sendMessage(m.chat, listMessage, { quoted: m })
+    await client.sendMessage(m.chat, menu, { quoted: m })
   }
 }
