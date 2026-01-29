@@ -1,86 +1,171 @@
 const fs = require("fs");
 const path = require("path");
+const axios = require("axios");
 const yts = require("yt-search");
 const { exec } = require("child_process");
 
-const MAX_AUDIO_MB = 16;
+const BOT_NAME = "SonGokuBot";
+
+// ⏳ COOLDOWN
+const cooldowns = new Map();
+const COOLDOWN_TIME = 15 * 1000;
+
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+async function getMp3Url(videoUrl) {
+  const res = await axios.get(
+    `https://gawrgura-api.onrender.com/download/ytmp3?url=${encodeURIComponent(videoUrl)}`,
+    { timeout: 20000 }
+  );
+  if (!res.data?.result) throw new Error("API inválida");
+  return res.data.result;
+}
 
 module.exports = {
-  command: ["yta", "ytaudio"],
+  command: ["ytaudio", "yta"],
   categoria: "descarga",
-  description: "Descarga audio MP3 de YouTube en buena calidad",
+  description: "Descarga audio de YouTube (compatible con WhatsApp)",
 
   run: async (client, m, args) => {
-    if (!args.length)
-      return client.reply(m.chat, "❌ Ingresa un nombre o enlace de YouTube", m);
+    const userId = m.sender;
+    let rawMp3, finalMp3;
 
-    const query = args.join(" ");
-    const search = await yts(query);
-    const video = search.videos[0];
-
-    if (!video)
-      return client.reply(m.chat, "❌ No se encontró el video", m);
-
-    const title = video.title.replace(/[^\w\s]/gi, "");
-    const output = path.join(__dirname, `./tmp/${title}.mp3`);
-
-    // 🔔 MENSAJE DE PROCESO
-    await client.reply(
-      m.chat,
-`╔══════════ 🎧 YT MP3 ══════════╗
-║ 🎵 ${video.title}
-║ ⏳ Procesando audio…
-║ 🎚️ Calidad: 128 kbps MP3
-║ 🤖 SonGokuBot
-╚═══════════════════════════════╝`,
-      m
-    );
-
-    // ⬇️ DESCARGA + CONVERSIÓN
-    exec(
-      `yt-dlp -f bestaudio --extract-audio --audio-format mp3 --audio-quality 0 -o "${output}" "${video.url}"`,
-      async (err) => {
-        if (err || !fs.existsSync(output)) {
-          return client.reply(m.chat, "❌ Error al convertir el audio", m);
-        }
-
-        const sizeMB = fs.statSync(output).size / (1024 * 1024);
-        const caption =
-`╔══════════ 🎶 AUDIO LISTO ══════════╗
-║ 🎵 ${video.title}
-║ 👤 ${video.author.name}
-║ ⏱️ ${video.timestamp}
-║ 🎚️ 128 kbps MP3
-║ 📦 ${sizeMB.toFixed(2)} MB
-║ 🤖 SonGokuBot
-╚════════════════════════════════════╝`;
-
-        // 📤 ENVÍO INTELIGENTE
-        if (sizeMB > MAX_AUDIO_MB) {
-          await client.sendMessage(
-            m.chat,
-            {
-              document: fs.readFileSync(output),
-              mimetype: "audio/mpeg",
-              fileName: `${title}.mp3`,
-              caption
-            },
-            { quoted: m }
-          );
-        } else {
-          await client.sendMessage(
-            m.chat,
-            {
-              audio: fs.readFileSync(output),
-              mimetype: "audio/mpeg",
-              caption
-            },
-            { quoted: m }
-          );
-        }
-
-        fs.unlinkSync(output);
+    // 🔒 Cooldown
+    if (cooldowns.has(userId)) {
+      const remaining = cooldowns.get(userId) - Date.now();
+      if (remaining > 0) {
+        return client.reply(
+          m.chat,
+          `⏳ Espera *${Math.ceil(remaining / 1000)}s* antes de usar este comando.`,
+          m,
+          global.channelInfo
+        );
       }
-    );
+    }
+    cooldowns.set(userId, Date.now() + COOLDOWN_TIME);
+
+    try {
+      if (!args.length) {
+        cooldowns.delete(userId);
+        return client.reply(
+          m.chat,
+          "❌ *Ingresa un nombre o enlace de YouTube.*",
+          m,
+          global.channelInfo
+        );
+      }
+
+      const query = args.join(" ");
+      let videoUrl = query;
+      let title = "audio";
+
+      const tmpDir = path.join(__dirname, "../../tmp");
+      fs.mkdirSync(tmpDir, { recursive: true });
+
+      // 🔎 Buscar si no es URL
+      if (!/^https?:\/\//.test(query)) {
+        const search = await yts(query);
+        if (!search.videos.length) {
+          cooldowns.delete(userId);
+          return client.reply(
+            m.chat,
+            "❌ *No se encontraron resultados.*",
+            m,
+            global.channelInfo
+          );
+        }
+        const v = search.videos[0];
+        videoUrl = v.url;
+        title = v.title.replace(/[\\/:*?"<>|]/g, "").slice(0, 70);
+      }
+
+      await client.reply(
+        m.chat,
+`╭━━━〔 🎵 𝐘𝐓 𝐀𝐔𝐃𝐈𝐎 〕━━━╮
+┃ 🔍 Procesando audio…
+┃ 🎶 ${title}
+┃ 🤖 ${BOT_NAME}
+╰━━━━━━━━━━━━━━━━━━━━╯`,
+        m,
+        global.channelInfo
+      );
+
+      rawMp3 = path.join(tmpDir, `${Date.now()}_raw.mp3`);
+      finalMp3 = path.join(tmpDir, `${Date.now()}_final.mp3`);
+
+      let success = false;
+      let lastErr;
+
+      // 🔁 Retry (links expiran)
+      for (let i = 1; i <= 3; i++) {
+        try {
+          const mp3Url = await getMp3Url(videoUrl);
+
+          const res = await axios.get(mp3Url, {
+            responseType: "stream",
+            timeout: 60000,
+            headers: { "User-Agent": "Mozilla/5.0" }
+          });
+
+          const writer = fs.createWriteStream(rawMp3);
+          res.data.pipe(writer);
+
+          await new Promise((resolve, reject) => {
+            writer.on("finish", resolve);
+            writer.on("error", reject);
+          });
+
+          if (fs.statSync(rawMp3).size < 120000) {
+            throw new Error("Archivo incompleto");
+          }
+
+          success = true;
+          break;
+        } catch (e) {
+          lastErr = e;
+          await sleep(1200);
+        }
+      }
+
+      if (!success) throw lastErr;
+
+      // ⚡ FFmpeg optimizado WhatsApp
+      await new Promise((resolve, reject) => {
+        exec(
+          `ffmpeg -y -loglevel error -i "${rawMp3}" -vn -ac 2 -ar 44100 -b:a 96k "${finalMp3}"`,
+          err => (err ? reject(err) : resolve())
+        );
+      });
+
+      // 📤 Enviar audio (NO como nota de voz)
+      await client.sendMessage(
+        m.chat,
+        {
+          audio: fs.readFileSync(finalMp3),
+          mimetype: "audio/mpeg",
+          fileName: `${title}.mp3`,
+          caption:
+`╭━━━〔 🎧 𝐀𝐔𝐃𝐈𝐎 𝐘𝐓 〕━━━╮
+┃ 🎵 ${title}
+┃ 📦 MP3 · 96kbps
+┃ 🤖 ${BOT_NAME}
+╰━━━━━━━━━━━━━━━━━━━━╯`
+        },
+        { quoted: m, ...global.channelInfo }
+      );
+
+    } catch (err) {
+      console.error("YTAUDIO ERROR:", err.message);
+      cooldowns.delete(userId);
+      await client.reply(
+        m.chat,
+        "❌ *No se pudo descargar el audio.*\nIntenta con otro video.",
+        m,
+        global.channelInfo
+      );
+    } finally {
+      if (rawMp3 && fs.existsSync(rawMp3)) fs.unlinkSync(rawMp3);
+      if (finalMp3 && fs.existsSync(finalMp3)) fs.unlinkSync(finalMp3);
+    }
   }
 };
