@@ -10,6 +10,9 @@ const BOT_NAME = "SonGokuBot";
 const cooldowns = new Map();
 const COOLDOWN_TIME = 15 * 1000;
 
+// 📦 Límite recomendado de audio WhatsApp (16 MB)
+const MAX_AUDIO_SIZE = 16 * 1024 * 1024;
+
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 async function getMp3Url(videoUrl) {
@@ -24,7 +27,7 @@ async function getMp3Url(videoUrl) {
 module.exports = {
   command: ["ytaudio", "yta"],
   categoria: "descarga",
-  description: "Descarga audio de YouTube en MP3",
+  description: "Descarga audio de YouTube en MP3 (envío inteligente)",
 
   run: async (client, m, args) => {
     const userId = m.sender;
@@ -82,12 +85,12 @@ module.exports = {
       // 🎨 MENSAJE DE PROCESO
       await client.reply(
         m.chat,
-`╭────── 🎧 YT AUDIO ──────╮
+`╭──── 🎧 YT AUDIO ────╮
 │ 🎵 ${title}
-│ ⏳ Descargando y convirtiendo
-│ ⚡ MP3 optimizado
+│ ⏳ Descargando audio…
+│ ⚡ Procesando MP3
 │ 🤖 ${BOT_NAME}
-╰────────────────────────╯`,
+╰────────────────────╯`,
         m,
         global.channelInfo
       );
@@ -131,7 +134,7 @@ module.exports = {
 
       if (!success) throw lastErr;
 
-      // ⚡ FFmpeg optimizado para MP3
+      // ⚡ FFmpeg optimizado MP3
       await new Promise((resolve, reject) => {
         exec(
           `ffmpeg -y -loglevel error -i "${rawMp3}" -vn -ac 2 -ar 44100 -b:a 96k "${finalMp3}"`,
@@ -139,34 +142,58 @@ module.exports = {
         );
       });
 
-      // 📤 ENVIAR MP3 NORMAL
-      await client.sendMessage(
-        m.chat,
-        {
-          audio: fs.readFileSync(finalMp3),
-          mimetype: "audio/mpeg",
-          fileName: `${title}.mp3`,
-          caption:
-`╭────── 🎶 AUDIO LISTO ──────╮
+      const fileSize = fs.statSync(finalMp3).size;
+      const isLarge = fileSize > MAX_AUDIO_SIZE;
+
+      // 📤 ENVÍO INTELIGENTE
+      if (isLarge) {
+        // 📁 Documento (más rápido y estable)
+        await client.sendMessage(
+          m.chat,
+          {
+            document: fs.readFileSync(finalMp3),
+            mimetype: "audio/mpeg",
+            fileName: `${title}.mp3`,
+            caption:
+`╭──── 📁 AUDIO MP3 ────╮
+│ 🎵 ${title}
+│ 📦 Archivo grande
+│ ⚡ Enviado como documento
+│ 🤖 ${BOT_NAME}
+╰─────────────────────╯`
+          },
+          { quoted: m, ...global.channelInfo }
+        );
+      } else {
+        // 🎧 Audio normal
+        await client.sendMessage(
+          m.chat,
+          {
+            audio: fs.readFileSync(finalMp3),
+            mimetype: "audio/mpeg",
+            fileName: `${title}.mp3`,
+            caption:
+`╭──── 🎶 AUDIO LISTO ────╮
 │ 🎵 ${title}
 │ 📦 MP3 · 96kbps
-│ ⚡ Alta compatibilidad
+│ ⚡ Envío rápido
 │ 🤖 ${BOT_NAME}
-╰───────────────────────────╯`
-        },
-        { quoted: m, ...global.channelInfo }
-      );
+╰──────────────────────╯`
+          },
+          { quoted: m, ...global.channelInfo }
+        );
+      }
 
     } catch (err) {
       console.error("YTAUDIO ERROR:", err.message);
       cooldowns.delete(userId);
       await client.reply(
         m.chat,
-`╭────── ❌ ERROR ──────╮
+`╭──── ❌ ERROR ────╮
 │ No se pudo descargar el audio
 │ 🔁 Intenta con otro video
 │ 🤖 ${BOT_NAME}
-╰─────────────────────╯`,
+╰─────────────────╯`,
         m,
         global.channelInfo
       );
