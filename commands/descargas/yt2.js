@@ -2,7 +2,9 @@ const fs = require("fs")
 const path = require("path")
 const axios = require("axios")
 const yts = require("yt-search")
+const { exec } = require("child_process")
 
+// 🔗 API
 const API_URL = "https://nexevo-api.vercel.app/download/y2"
 
 // ⏳ COOLDOWN
@@ -17,7 +19,7 @@ module.exports = {
 
   run: async (client, m, args) => {
     const userId = m.sender
-    let filePath
+    let rawMp4, finalMp4
 
     // 🔒 Cooldown
     if (cooldowns.has(userId)) {
@@ -49,7 +51,9 @@ module.exports = {
       // 📁 TMP
       const tmpDir = path.join(__dirname, "../../tmp")
       fs.mkdirSync(tmpDir, { recursive: true })
-      filePath = path.join(tmpDir, `${Date.now()}.mp4`)
+
+      rawMp4 = path.join(tmpDir, `${Date.now()}_raw.mp4`)
+      finalMp4 = path.join(tmpDir, `${Date.now()}_final.mp4`)
 
       // 🔍 BUSCAR SI NO ES LINK
       if (!/^https?:\/\//.test(query)) {
@@ -82,7 +86,7 @@ module.exports = {
         global.channelInfo
       )
 
-      // ⬇️ OBTENER LINK MP4
+      // 📥 OBTENER LINK MP4
       const api = `${API_URL}?url=${encodeURIComponent(videoUrl)}`
       const { data } = await axios.get(api, { timeout: 20000 })
 
@@ -99,7 +103,7 @@ module.exports = {
             headers: { "User-Agent": "Mozilla/5.0" }
           })
 
-          const writer = fs.createWriteStream(filePath)
+          const writer = fs.createWriteStream(rawMp4)
           res.data.pipe(writer)
 
           await new Promise((r, e) => {
@@ -107,7 +111,7 @@ module.exports = {
             writer.on("error", e)
           })
 
-          if (fs.statSync(filePath).size < 300000)
+          if (fs.statSync(rawMp4).size < 300000)
             throw new Error("Archivo incompleto")
 
           ok = true
@@ -119,11 +123,19 @@ module.exports = {
 
       if (!ok) throw new Error("Fallo descarga")
 
+      // 🎞️ NORMALIZAR MP4 (CLAVE PARA WHATSAPP)
+      await new Promise((resolve, reject) => {
+        exec(
+          `ffmpeg -y -loglevel error -i "${rawMp4}" -map 0:v -map 0:a? -movflags +faststart -c:v copy -c:a copy "${finalMp4}"`,
+          err => (err ? reject(err) : resolve())
+        )
+      })
+
       // 📤 ENVIAR VIDEO
       await client.sendMessage(
         m.chat,
         {
-          video: fs.readFileSync(filePath),
+          video: fs.readFileSync(finalMp4),
           mimetype: "video/mp4"
         },
         { quoted: m, ...global.channelInfo }
@@ -140,7 +152,9 @@ module.exports = {
         global.channelInfo
       )
     } finally {
-      if (filePath && fs.existsSync(filePath)) fs.unlinkSync(filePath)
+      if (rawMp4 && fs.existsSync(rawMp4)) fs.unlinkSync(rawMp4)
+      if (finalMp4 && fs.existsSync(finalMp4)) fs.unlinkSync(finalMp4)
     }
   }
 }
+
