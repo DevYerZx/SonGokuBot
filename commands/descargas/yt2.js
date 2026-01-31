@@ -1,49 +1,146 @@
+const fs = require("fs")
+const path = require("path")
 const axios = require("axios")
 const yts = require("yt-search")
 
+const API_URL = "https://nexevo-api.vercel.app/download/y2"
+
+// ⏳ COOLDOWN
+const cooldowns = new Map()
+const COOLDOWN_TIME = 15 * 1000
+const sleep = ms => new Promise(r => setTimeout(r, ms))
+
 module.exports = {
-  command: ["yt2],
+  command: ["yt2"],
   categoria: "descarga",
-  description: "Busca o descarga videos de YouTube en MP4",
+  description: "Busca y descarga videos de YouTube (MP4)",
 
   run: async (client, m, args) => {
+    const userId = m.sender
+    let filePath
+
+    // 🔒 Cooldown
+    if (cooldowns.has(userId)) {
+      const wait = cooldowns.get(userId) - Date.now()
+      if (wait > 0)
+        return client.reply(
+          m.chat,
+          `⏳ Espera *${Math.ceil(wait / 1000)}s*`,
+          m,
+          global.channelInfo
+        )
+    }
+    cooldowns.set(userId, Date.now() + COOLDOWN_TIME)
+
     try {
-      if (!args.length)
-        return m.reply("❌ Escribe un nombre o enlace de YouTube")
-
-      m.reply("🔎 Buscando video...")
-
-      let ytUrl = args[0]
-
-      // 🔍 SI NO ES LINK → BUSCAR
-      if (!args[0].includes("youtu")) {
-        const search = await yts(args.join(" "))
-        if (!search.videos.length)
-          return m.reply("❌ No encontré resultados")
-
-        const video = search.videos[0]
-        ytUrl = video.url
+      if (!args.length) {
+        cooldowns.delete(userId)
+        return client.reply(
+          m.chat,
+          "❌ Escribe el nombre o link del video",
+          m,
+          global.channelInfo
+        )
       }
 
-      // 📥 DESCARGA
-      const api = `https://nexevo-api.vercel.app/download/y2?url=${encodeURIComponent(ytUrl)}`
-      const { data } = await axios.get(api)
+      const query = args.join(" ")
+      let videoUrl, title = "video"
+
+      // 📁 TMP
+      const tmpDir = path.join(__dirname, "../../tmp")
+      fs.mkdirSync(tmpDir, { recursive: true })
+      filePath = path.join(tmpDir, `${Date.now()}.mp4`)
+
+      // 🔍 BUSCAR SI NO ES LINK
+      if (!/^https?:\/\//.test(query)) {
+        const search = await yts(query)
+        if (!search.videos.length) {
+          cooldowns.delete(userId)
+          return client.reply(
+            m.chat,
+            "❌ No se encontró el video",
+            m,
+            global.channelInfo
+          )
+        }
+
+        videoUrl = search.videos[0].url
+        title = search.videos[0].title
+          .replace(/[\\/:*?"<>|]/g, "")
+          .slice(0, 60)
+      } else {
+        videoUrl = query
+      }
+
+      // 🔔 AVISO
+      await client.reply(
+        m.chat,
+`🎬 *VIDEO*
+📹 ${title}
+⏳ Descargando…`,
+        m,
+        global.channelInfo
+      )
+
+      // ⬇️ OBTENER LINK MP4
+      const api = `${API_URL}?url=${encodeURIComponent(videoUrl)}`
+      const { data } = await axios.get(api, { timeout: 20000 })
 
       if (!data.status || !data.result?.url)
-        return m.reply("❌ No se pudo descargar el video")
+        throw new Error("API inválida")
 
-      const res = data.result
-      const quality = res.quality || 360
+      // 🔁 DESCARGA CON REINTENTOS
+      let ok = false
+      for (let i = 0; i < 3; i++) {
+        try {
+          const res = await axios.get(data.result.url, {
+            responseType: "stream",
+            timeout: 60000,
+            headers: { "User-Agent": "Mozilla/5.0" }
+          })
 
-      await client.sendMessage(m.chat, {
-        video: { url: res.url },
-        mimetype: "video/mp4",
-        caption: `🎬 *YouTube Video*\n\n📺 Calidad: ${quality}p\n🤖 ${global.botname || "SonGokuBot"}`
-      }, { quoted: m })
+          const writer = fs.createWriteStream(filePath)
+          res.data.pipe(writer)
 
-    } catch (e) {
-      console.error(e)
-      m.reply("❌ Error al procesar el video")
+          await new Promise((r, e) => {
+            writer.on("finish", r)
+            writer.on("error", e)
+          })
+
+          if (fs.statSync(filePath).size < 300000)
+            throw new Error("Archivo incompleto")
+
+          ok = true
+          break
+        } catch {
+          await sleep(1200)
+        }
+      }
+
+      if (!ok) throw new Error("Fallo descarga")
+
+      // 📤 ENVIAR VIDEO
+      await client.sendMessage(
+        m.chat,
+        {
+          video: fs.readFileSync(filePath),
+          mimetype: "video/mp4"
+        },
+        { quoted: m, ...global.channelInfo }
+      )
+
+    } catch (err) {
+      console.error("YTDL MP4 ERROR:", err.message)
+      cooldowns.delete(userId)
+
+      await client.reply(
+        m.chat,
+        "❌ Error al procesar el video",
+        m,
+        global.channelInfo
+      )
+    } finally {
+      if (filePath && fs.existsSync(filePath)) fs.unlinkSync(filePath)
     }
   }
 }
