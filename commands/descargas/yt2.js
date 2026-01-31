@@ -86,7 +86,7 @@ module.exports = {
         global.channelInfo
       )
 
-      // 📥 OBTENER LINK MP4
+      // 📥 OBTENER MP4
       const api = `${API_URL}?url=${encodeURIComponent(videoUrl)}`
       const { data } = await axios.get(api, { timeout: 20000 })
 
@@ -123,7 +123,7 @@ module.exports = {
 
       if (!ok) throw new Error("Fallo descarga")
 
-      // 🎞️ NORMALIZAR MP4 (CLAVE PARA WHATSAPP)
+      // 🎞️ NORMALIZAR (OBLIGATORIO PARA WHATSAPP)
       await new Promise((resolve, reject) => {
         exec(
           `ffmpeg -y -loglevel error -i "${rawMp4}" -map 0:v -map 0:a? -movflags +faststart -c:v copy -c:a copy "${finalMp4}"`,
@@ -142,7 +142,7 @@ module.exports = {
       )
 
     } catch (err) {
-      console.error("YTDL MP4 ERROR:", err.message)
+      console.error("YT2 ERROR:", err.message)
       cooldowns.delete(userId)
 
       await client.reply(
@@ -151,7 +151,9 @@ module.exports = {
         m,
         global.channelInfo
       )
+
     } finally {
+      // 🧹 LIMPIEZA TOTAL (NO QUEDA NADA EN CONSOLA / SERVIDOR)
       if (rawMp4 && fs.existsSync(rawMp4)) fs.unlinkSync(rawMp4)
       if (finalMp4 && fs.existsSync(finalMp4)) fs.unlinkSync(finalMp4)
     }
