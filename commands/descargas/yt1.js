@@ -13,7 +13,7 @@ const COOLDOWN_TIME = 15 * 1000
 const sleep = ms => new Promise(r => setTimeout(r, ms))
 
 module.exports = {
-  command: ["play1"],
+  command: ["yt1"],
   categoria: "descarga",
   description: "Busca y descarga audio de YouTube (MP3)",
 
