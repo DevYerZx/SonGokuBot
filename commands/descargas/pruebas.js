@@ -3,60 +3,77 @@ const fs = require("fs");
 const path = require("path");
 
 module.exports = {
-  command: ["ttuser", "ttposts"],
+  command: ["ytm3", "ytaudio"],
   categoria: "descarga",
-  description: "Descarga el último video de un usuario de TikTok",
+  description: "Descarga música de YouTube como MP3",
 
   run: async (client, m, args) => {
     try {
       if (!args[0]) {
-        return m.reply("📌 Usa así:\n`!ttuser @usuario`");
+        return m.reply("📌 Usa así:\n`!ytm3 <enlace o búsqueda>`");
       }
 
-      const user = args[0].startsWith("@") ? args[0] : `@${args[0]}`;
-      m.reply(`🔍 Buscando videos de *${user}*...`);
+      let query = args.join(" ");
 
-      // 🔗 API
-      const api = `https://apis-starlights-team.koyeb.app/starlight/tiktok-user-posts?user=${encodeURIComponent(user)}`;
+      // 🧠 Detectar si es link de YouTube
+      const isUrl = /youtu/i.test(query);
+
+      let videoUrl;
+
+      if (isUrl) {
+        // Si es URL
+        videoUrl = query;
+      } else {
+        // ✨ YT SEARCH: buscar video
+        m.reply(`🔎 Buscando en YouTube: *${query}*...`);
+        const searchUrl = `https://apis-starlights-team.koyeb.app/starlight/yt-search?query=${encodeURIComponent(query)}`;
+        const sr = await axios.get(searchUrl);
+        const srdata = sr.data;
+
+        if (!srdata.status || !srdata.result || !srdata.result[0]) {
+          return m.reply("❌ No se encontró ningún video para esa búsqueda.");
+        }
+
+        // Tomar el primer resultado
+        videoUrl = srdata.result[0].url;
+      }
+
+      m.reply("🎧 Obteniendo audio MP3...");
+
+      // 🌐 API de descarga MP3
+      const api = `https://apis-starlights-team.koyeb.app/starlight/youtube-mp3?url=${encodeURIComponent(videoUrl)}`;
+
       const { data } = await axios.get(api);
 
-      if (!data.status || !data.result || data.result.length === 0) {
-        return m.reply("❌ No se encontraron videos o la cuenta es privada.");
+      if (!data.status || !data.result?.download) {
+        return m.reply("❌ No se pudo descargar el MP3.");
       }
 
-      // 🎥 Tomar el video más reciente
-      const video = data.result[0];
-      const videoUrl =
-        video.video?.downloadAddr ||
-        video.video?.playAddr;
+      const info = data.result;
+      const downloadUrl = info.download;
+      const title = info.title || "YouTube";
 
-      if (!videoUrl) {
-        return m.reply("⚠️ No se pudo obtener el enlace del video.");
-      }
+      // 🗂️ Guardar MP3
+      const filePath = path.join(__dirname, `../../tmp/${Date.now()}.mp3`);
+      const audio = await axios.get(downloadUrl, { responseType: "arraybuffer" });
+      fs.writeFileSync(filePath, audio.data);
 
-      const desc = video.desc || "Video de TikTok";
-      const filePath = path.join(__dirname, `../../tmp/${Date.now()}.mp4`);
-
-      // ⬇️ Descargar video
-      const vid = await axios.get(videoUrl, { responseType: "arraybuffer" });
-      fs.writeFileSync(filePath, vid.data);
-
-      // 📤 Enviar video
+      // 📲 Enviar audio
       await client.sendMessage(
         m.chat,
         {
-          video: fs.readFileSync(filePath),
-          caption: `🎵 *${user}*\n\n${desc}`,
-          mimetype: "video/mp4",
+          audio: fs.readFileSync(filePath),
+          mimetype: "audio/mpeg",
+          fileName: `${title}.mp3`,
         },
         { quoted: m }
       );
 
       fs.unlinkSync(filePath);
 
-    } catch (e) {
-      console.error(e);
-      m.reply("❌ Error al descargar el video de TikTok.");
+    } catch (err) {
+      console.error(err);
+      m.reply("⚠️ Hubo un error al procesar tu petición.");
     }
   }
 };
