@@ -1,59 +1,48 @@
 const axios = require("axios");
 
 module.exports = {
-  command: ["spsearch"],
+  command: ["spsearch", "spotify"],
   categoria: "busqueda",
   description: "Buscar canciones en Spotify",
 
   run: async (client, m, args) => {
     try {
       if (!args.length) {
-        return m.reply("📌 Usa así:\n`!spsearch <canción o artista>`");
+        return m.reply("📌 Usa:\n`!spsearch <canción o artista>`");
       }
 
       const query = args.join(" ");
       await m.reply("🔎 Buscando en Spotify...");
 
-      // ✅ API CORRECTA (LA QUE PASASTE)
-      const api = `https://api-adonix.ultraplus.click/search/spotify?apikey=dvyer&query=${encodeURIComponent(query)}&type=track`;
+      const url = `https://api-adonix.ultraplus.click/search/spotify?apikey=dvyer&query=${encodeURIComponent(query)}&type=track`;
 
-      const res = await axios.get(api, {
-        timeout: 20000,
-        headers: {
-          "User-Agent": "Mozilla/5.0"
-        }
-      });
-
+      const res = await axios.get(url);
       const data = res.data;
 
-      // 🔒 Validaciones reales
-      if (
-        !data ||
-        data.status !== true ||
-        !data.result ||
-        !Array.isArray(data.result.results) ||
-        data.result.results.length === 0
-      ) {
-        return m.reply("❌ No se encontraron resultados en Spotify.");
+      // ✅ VALIDACIÓN REAL
+      if (!data.status || !data.result || !data.result.results.length) {
+        return m.reply("❌ No se encontraron resultados.");
       }
 
       const results = data.result.results.slice(0, 5);
 
-      let text = `🎧 *Resultados de Spotify*\n🔎 *${data.result.query}*\n\n`;
+      let text = `🎧 *Spotify – Resultados*\n`;
+      text += `🔎 *${data.result.query}*\n\n`;
 
       results.forEach((song, i) => {
         text +=
           `*${i + 1}.* ${song.title}\n` +
           `👤 ${song.artist}\n` +
           `💿 ${song.album}\n` +
-          `⏱️ ${song.duration}\n\n`;
+          `⏱️ ${song.duration}\n` +
+          `🔥 Popularidad: ${song.popularity}\n\n`;
       });
 
       await client.sendMessage(m.chat, { text }, { quoted: m });
 
-    } catch (err) {
-      console.error("SPOTIFY SEARCH ERROR:", err?.response?.data || err.message);
-      await m.reply("⚠️ Error al buscar en Spotify.\nIntenta otra vez.");
+    } catch (e) {
+      console.error(e);
+      m.reply("⚠️ Error al buscar en Spotify.");
     }
   }
 };
