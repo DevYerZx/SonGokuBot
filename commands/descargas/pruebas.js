@@ -1,62 +1,60 @@
 const axios = require("axios");
 
 module.exports = {
-  command: ["spdl"],
-  categoria: "spotify",
-  description: "Descargar Spotify",
+  command: ["spotify", "sp"],
+  description: "Descarga música de Spotify",
 
-  run: async (client, m) => {
+  run: async (client, m, args) => {
     try {
-      // 👉 EXTRAER LINK DEL MENSAJE COMPLETO
-      const match = m.text.match(/https?:\/\/open\.spotify\.com\/track\/[^\s]+/);
-
-      if (!match) {
+      if (!args[0]) {
         return client.reply(
           m.chat,
-          "❌ Link de Spotify inválido",
+          "❌ Envía un enlace de Spotify",
           m,
           global.channelInfo
         );
       }
 
-      const spotifyUrl = match[0];
+      const url = encodeURIComponent(args[0]);
+      const api = `https://api-adonix.ultraplus.click/download/spotify?apikey=dvyer&url=${url}`;
 
-      await client.reply(
-        m.chat,
-        "⬇️ Descargando...",
-        m,
-        global.channelInfo
-      );
+      const { data } = await axios.get(api);
 
-      const api =
-        `https://api-adonix.ultraplus.click/download/spotify?apikey=dvyer&url=${encodeURIComponent(spotifyUrl)}`;
-
-      const res = await axios.get(api);
-      const song = res.data?.result;
-
-      if (!song?.url) {
+      if (!data.status) {
         return client.reply(
           m.chat,
-          "❌ Error al descargar",
+          "⚠️ No se pudo descargar el audio.",
           m,
           global.channelInfo
         );
       }
+
+      const { title, thumbnail, url: audio } = data.result;
 
       await client.sendMessage(
         m.chat,
         {
-          audio: { url: song.url },
-          mimetype: "audio/mpeg",
-          fileName: `${song.title || "Spotify"}.mp3"
+          image: { url: thumbnail },
+          caption: `🎵 *${title}*\n\n⬇️ Descargando audio...`
         },
-        global.channelInfo
+        { quoted: m }
+      );
+
+      await client.sendMessage(
+        m.chat,
+        {
+          audio: { url: audio },
+          mimetype: "audio/mpeg",
+          fileName: `${title}.mp3`
+        },
+        { quoted: m }
       );
 
     } catch (e) {
+      console.error(e);
       client.reply(
         m.chat,
-        "⚠️ Error",
+        "⚠️ Error en la descarga.",
         m,
         global.channelInfo
       );
