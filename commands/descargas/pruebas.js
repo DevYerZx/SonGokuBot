@@ -1,8 +1,8 @@
 const axios = require("axios");
 
 module.exports = {
-  command: ["spotify", "sp"],
-  description: "Descarga música de Spotify",
+  command: ["spdl"],
+  description: "Descarga",
 
   run: async (client, m, args) => {
     try {
