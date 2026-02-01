@@ -1,9 +1,9 @@
 const axios = require("axios");
 
 module.exports = {
-  command: ["spotify"],
-  categoria: "descarga",
-  description: "Buscar música en Spotify con botón de descarga",
+  command: ["spsearch"],
+  categoria: "busqueda",
+  description: "Buscar canciones en Spotify",
 
   run: async (client, m, args) => {
     try {
@@ -12,21 +12,27 @@ module.exports = {
       }
 
       const query = args.join(" ");
-      m.reply("🔎 Buscando en Spotify...");
+      await m.reply("🔎 Buscando en Spotify...");
 
-      // 🔍 API SPOTIFY SEARCH (ADO)
-      const api = `https://api-adonix.ultraplus.click/api/spotify-search?query=${encodeURIComponent(query)}`;
-      const { data } = await axios.get(api);
+      // ✅ ENDPOINT CORRECTO
+      const api = `https://api-adonix.ultraplus.click/api/spotify-search-v2?query=${encodeURIComponent(query)}`;
+      const res = await axios.get(api, { timeout: 15000 });
+      const data = res.data;
 
-      if (!data.status || !data.result?.results?.length) {
-        return m.reply("❌ No se encontraron resultados.");
+      // 🔒 VALIDACIONES FUERTES
+      if (
+        !data ||
+        data.status !== true ||
+        !data.result ||
+        !Array.isArray(data.result.results) ||
+        data.result.results.length === 0
+      ) {
+        return m.reply("❌ No se encontraron resultados en Spotify.");
       }
 
       const results = data.result.results.slice(0, 5);
 
-      // Mensaje principal
-      let text = `🎧 *Resultados de Spotify*\n🔎 *${query}*\n\n`;
-      let buttons = [];
+      let text = `🎧 *Resultados de Spotify*\n🔎 *${data.result.query}*\n\n`;
 
       results.forEach((song, i) => {
         text +=
@@ -34,29 +40,15 @@ module.exports = {
           `👤 ${song.artist}\n` +
           `💿 ${song.album}\n` +
           `⏱️ ${song.duration}\n\n`;
-
-        // botón por canción
-        buttons.push({
-          buttonId: `spdl|${song.title} ${song.artist}`,
-          buttonText: { displayText: `⬇️ Descargar ${i + 1}` },
-          type: 1
-        });
       });
 
-      await client.sendMessage(
-        m.chat,
-        {
-          text: text.trim(),
-          footer: "Spotify Downloader • DvYerBot",
-          buttons,
-          headerType: 1
-        },
-        { quoted: m }
-      );
+      text += "⬇️ *En el siguiente paso agregamos el botón de descarga*";
 
-    } catch (e) {
-      console.error(e);
-      m.reply("⚠️ Error al buscar en Spotify.");
+      await client.sendMessage(m.chat, { text }, { quoted: m });
+
+    } catch (err) {
+      console.error("SPOTIFY SEARCH ERROR:", err?.response?.data || err.message);
+      await m.reply("⚠️ Error al buscar en Spotify.\nIntenta nuevamente en unos segundos.");
     }
   }
 };
