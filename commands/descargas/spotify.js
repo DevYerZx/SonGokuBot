@@ -1,7 +1,7 @@
 const axios = require("axios");
 
 module.exports = {
-  command: ["sp"],
+  command: ["spotify","sp"],
   categoria: "spotify",
   description: "Buscar Spotify",
 
