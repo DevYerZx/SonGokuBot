@@ -1,61 +1,51 @@
 const axios = require("axios");
 
 module.exports = {
-  command: ["spsearch"],
+  command: ["spdl"],
   categoria: "spotify",
-  description: "Buscar una canción en Spotify",
 
   run: async (client, m, args) => {
     try {
-      if (!args.length) {
-        return m.reply("📌 Usa:\n`!spsearch <canción o artista>`");
-      }
+      if (!args[0]) return;
 
-      const query = args.join(" ");
-      await m.reply("🔎 Buscando en Spotify...");
+      const spotifyUrl = args[0];
 
-      const api = `https://api-adonix.ultraplus.click/search/spotify?apikey=dvyer&query=${encodeURIComponent(query)}&type=track`;
+      await client.sendMessage(
+        m.chat,
+        { text: "⬇️ Descargando..." },
+        { quoted: m, ...global.channelInfo }
+      );
+
+      const api = `https://api-adonix.ultraplus.click/download/spotify?apikey=dvyer&url=${encodeURIComponent(spotifyUrl)}`;
       const res = await axios.get(api);
-      const data = res.data;
 
-      if (!data.status || !data.result || !data.result.results.length) {
-        return m.reply("❌ No se encontró ningún resultado.");
+      const data = res.data;
+      if (!data.status || !data.result?.url) {
+        return client.sendMessage(
+          m.chat,
+          { text: "❌ Error al descargar" },
+          { quoted: m, ...global.channelInfo }
+        );
       }
 
-      // 🎯 SOLO 1 RESULTADO
-      const song = data.result.results[0];
-
-      const caption =
-        `🎧 *${song.title}*\n` +
-        `👤 *Artista:* ${song.artist}\n` +
-        `💿 *Álbum:* ${song.album}\n` +
-        `⏱️ *Duración:* ${song.duration}\n` +
-        `🔥 *Popularidad:* ${song.popularity}\n`;
-
-      // 🔘 BOTÓN
-      const buttons = [
-        {
-          buttonId: `spdl|${song.link}`,
-          buttonText: { displayText: "⬇️ Descargar MP3" },
-          type: 1
-        }
-      ];
+      const song = data.result;
 
       await client.sendMessage(
         m.chat,
         {
-          image: { url: song.image },
-          caption,
-          buttons,
-          footer: "Spotify Downloader",
-          headerType: 4
+          audio: { url: song.url },
+          mimetype: "audio/mpeg",
+          fileName: `${song.title || "Spotify"}.mp3`
         },
-        { quoted: m }
+        { quoted: m, ...global.channelInfo }
       );
 
     } catch (err) {
-      console.error(err);
-      m.reply("⚠️ Error al buscar en Spotify.");
+      await client.sendMessage(
+        m.chat,
+        { text: "⚠️ Error" },
+        { quoted: m, ...global.channelInfo }
+      );
     }
   }
 };
