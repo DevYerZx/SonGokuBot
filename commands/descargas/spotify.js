@@ -1,66 +1,103 @@
 const axios = require("axios");
 
 module.exports = {
-  command: ["spotify"],
-  categoria: "descarga",
+  command: ["sp"],
+  categoria: "spotify",
+  description: "Buscar y descargar Spotify",
 
   run: async (client, m, args) => {
     try {
+      // 👉 CUANDO PRESIONAN EL BOTÓN
+      if (m.type === "buttonsResponseMessage") {
+        const id = m.message.buttonsResponseMessage.selectedButtonId;
+
+        if (!id.startsWith("SPDL:")) return;
+
+        const spotifyUrl = id.replace("SPDL:", "");
+
+        await client.reply(
+          m.chat,
+          "⬇️ Descargando...",
+          m,
+          global.channelInfo
+        );
+
+        const api =
+          `https://api-adonix.ultraplus.click/download/spotify?apikey=dvyer&url=${encodeURIComponent(spotifyUrl)}`;
+
+        const res = await axios.get(api);
+        const song = res.data?.result;
+
+        if (!song?.url) throw "error";
+
+        return await client.sendMessage(
+          m.chat,
+          {
+            audio: { url: song.url },
+            mimetype: "audio/mpeg",
+            fileName: `${song.title || "Spotify"}.mp3`
+          },
+          global.channelInfo
+        );
+      }
+
+      // 👉 BÚSQUEDA NORMAL
       if (!args.length) return;
 
       const query = args.join(" ");
 
-      await client.sendMessage(
+      await client.reply(
         m.chat,
-        { text: "🔎 Buscando..." },
-        { quoted: m, ...global.channelInfo }
+        "🔎 Buscando...",
+        m,
+        global.channelInfo
       );
 
-      const api = `https://api-adonix.ultraplus.click/search/spotify?apikey=dvyer&query=${encodeURIComponent(query)}&type=track`;
-      const res = await axios.get(api);
+      const searchApi =
+        `https://api-adonix.ultraplus.click/search/spotify?apikey=dvyer&query=${encodeURIComponent(query)}&type=track`;
 
-      const data = res.data;
-      if (!data.status || !data.result?.results?.length) {
-        return client.sendMessage(
+      const search = await axios.get(searchApi);
+      const results = search.data?.result?.results;
+
+      if (!results || !results.length) {
+        return client.reply(
           m.chat,
-          { text: "❌ Sin resultados" },
-          { quoted: m, ...global.channelInfo }
+          "❌ Sin resultados",
+          m,
+          global.channelInfo
         );
       }
 
-      const song = data.result.results[0];
-
-      const caption =
-`🎵 ${song.title}
-👤 ${song.artist}
-💿 ${song.album}
-⏱️ ${song.duration}`;
-
-      const buttons = [
-        {
-          buttonId: `spdl|${song.link}`,
-          buttonText: { displayText: "⬇️ Descargar" },
-          type: 1
-        }
-      ];
+      const song = results[0];
 
       await client.sendMessage(
         m.chat,
         {
           image: { url: song.image },
-          caption,
-          buttons,
+          caption:
+`🎵 ${song.title}
+👤 ${song.artist}
+💿 ${song.album}
+⏱️ ${song.duration}`,
+          buttons: [
+            {
+              buttonId: `SPDL:${song.link}`,
+              buttonText: { displayText: "⬇️ Descargar" },
+              type: 1
+            }
+          ],
           footer: "SonGoku",
           headerType: 4
         },
-        { quoted: m, ...global.channelInfo }
+        global.channelInfo
       );
 
-    } catch (err) {
-      await client.sendMessage(
+    } catch (e) {
+      client.reply(
         m.chat,
-        { text: "⚠️ Error" },
-        { quoted: m, ...global.channelInfo }
+        "⚠️ Error",
+        m,
+        global.channelInfo
       );
     }
   }
