@@ -14,12 +14,19 @@ module.exports = {
       const query = args.join(" ");
       await m.reply("🔎 Buscando en Spotify...");
 
-      // ✅ ENDPOINT CORRECTO
-      const api = `https://api-adonix.ultraplus.click/api/spotify-search-v2?query=${encodeURIComponent(query)}`;
-      const res = await axios.get(api, { timeout: 15000 });
+      // ✅ API CORRECTA (LA QUE PASASTE)
+      const api = `https://api-adonix.ultraplus.click/search/spotify?apikey=dvyer&query=${encodeURIComponent(query)}&type=track`;
+
+      const res = await axios.get(api, {
+        timeout: 20000,
+        headers: {
+          "User-Agent": "Mozilla/5.0"
+        }
+      });
+
       const data = res.data;
 
-      // 🔒 VALIDACIONES FUERTES
+      // 🔒 Validaciones reales
       if (
         !data ||
         data.status !== true ||
@@ -42,13 +49,11 @@ module.exports = {
           `⏱️ ${song.duration}\n\n`;
       });
 
-      text += "⬇️ *En el siguiente paso agregamos el botón de descarga*";
-
       await client.sendMessage(m.chat, { text }, { quoted: m });
 
     } catch (err) {
       console.error("SPOTIFY SEARCH ERROR:", err?.response?.data || err.message);
-      await m.reply("⚠️ Error al buscar en Spotify.\nIntenta nuevamente en unos segundos.");
+      await m.reply("⚠️ Error al buscar en Spotify.\nIntenta otra vez.");
     }
   }
 };
