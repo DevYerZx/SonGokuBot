@@ -1,79 +1,62 @@
 const axios = require("axios");
-const fs = require("fs");
-const path = require("path");
 
 module.exports = {
-  command: ["ytm3", "ytaudio"],
+  command: ["spotify"],
   categoria: "descarga",
-  description: "Descarga música de YouTube como MP3",
+  description: "Buscar música en Spotify con botón de descarga",
 
   run: async (client, m, args) => {
     try {
-      if (!args[0]) {
-        return m.reply("📌 Usa así:\n`!ytm3 <enlace o búsqueda>`");
+      if (!args.length) {
+        return m.reply("📌 Usa así:\n`!spsearch <canción o artista>`");
       }
 
-      let query = args.join(" ");
+      const query = args.join(" ");
+      m.reply("🔎 Buscando en Spotify...");
 
-      // 🧠 Detectar si es link de YouTube
-      const isUrl = /youtu/i.test(query);
-
-      let videoUrl;
-
-      if (isUrl) {
-        // Si es URL
-        videoUrl = query;
-      } else {
-        // ✨ YT SEARCH: buscar video
-        m.reply(`🔎 Buscando en YouTube: *${query}*...`);
-        const searchUrl = `https://apis-starlights-team.koyeb.app/starlight/yt-search?query=${encodeURIComponent(query)}`;
-        const sr = await axios.get(searchUrl);
-        const srdata = sr.data;
-
-        if (!srdata.status || !srdata.result || !srdata.result[0]) {
-          return m.reply("❌ No se encontró ningún video para esa búsqueda.");
-        }
-
-        // Tomar el primer resultado
-        videoUrl = srdata.result[0].url;
-      }
-
-      m.reply("🎧 Obteniendo audio MP3...");
-
-      // 🌐 API de descarga MP3
-      const api = `https://apis-starlights-team.koyeb.app/starlight/youtube-mp3?url=${encodeURIComponent(videoUrl)}`;
-
+      // 🔍 API SPOTIFY SEARCH (ADO)
+      const api = `https://api-adonix.ultraplus.click/api/spotify-search?query=${encodeURIComponent(query)}`;
       const { data } = await axios.get(api);
 
-      if (!data.status || !data.result?.download) {
-        return m.reply("❌ No se pudo descargar el MP3.");
+      if (!data.status || !data.result?.results?.length) {
+        return m.reply("❌ No se encontraron resultados.");
       }
 
-      const info = data.result;
-      const downloadUrl = info.download;
-      const title = info.title || "YouTube";
+      const results = data.result.results.slice(0, 5);
 
-      // 🗂️ Guardar MP3
-      const filePath = path.join(__dirname, `../../tmp/${Date.now()}.mp3`);
-      const audio = await axios.get(downloadUrl, { responseType: "arraybuffer" });
-      fs.writeFileSync(filePath, audio.data);
+      // Mensaje principal
+      let text = `🎧 *Resultados de Spotify*\n🔎 *${query}*\n\n`;
+      let buttons = [];
 
-      // 📲 Enviar audio
+      results.forEach((song, i) => {
+        text +=
+          `*${i + 1}.* ${song.title}\n` +
+          `👤 ${song.artist}\n` +
+          `💿 ${song.album}\n` +
+          `⏱️ ${song.duration}\n\n`;
+
+        // botón por canción
+        buttons.push({
+          buttonId: `spdl|${song.title} ${song.artist}`,
+          buttonText: { displayText: `⬇️ Descargar ${i + 1}` },
+          type: 1
+        });
+      });
+
       await client.sendMessage(
         m.chat,
         {
-          audio: fs.readFileSync(filePath),
-          mimetype: "audio/mpeg",
-          fileName: `${title}.mp3`,
+          text: text.trim(),
+          footer: "Spotify Downloader • DvYerBot",
+          buttons,
+          headerType: 1
         },
         { quoted: m }
       );
 
-      fs.unlinkSync(filePath);
-
-    } catch (err) {
-      console.error(err);
-      m.reply("⚠️ Hubo un error al procesar tu petición.");
+    } catch (e) {
+      console.error(e);
+      m.reply("⚠️ Error al buscar en Spotify.");
     }
   }
 };
