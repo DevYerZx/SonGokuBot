@@ -2,7 +2,7 @@ const axios = require("axios");
 
 module.exports = {
   command: ["spotify","sp"],
-  categoria: "spotify",
+  categoria: "descarga",
   description: "Buscar Spotify",
 
   run: async (client, m, args) => {
