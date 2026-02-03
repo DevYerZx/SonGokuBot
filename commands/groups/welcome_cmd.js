@@ -6,7 +6,7 @@ const dbPath = path.join(dirPath, "welcome.json");
 
 module.exports = {
   command: ["welcome"],
-  category: "grupo",
+    categoria: "grupos",
   description: "Activar o desactivar bienvenida",
 
   run: async (client, m, args) => {
