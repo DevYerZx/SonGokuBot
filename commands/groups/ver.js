@@ -25,10 +25,10 @@ const { downloadContentFromMessage } = require("@whiskeysockets/baileys");
 
 module.exports = {
   // 🧩 Comandos que activan el módulo
-  command: ["ñam", "uff", ".", "1", "xd"],
+  //command: ["ñam", "uff", ".", "1", "xd"],
 
   // 📂 Categoría interna
-  categoria: "dueño",
+  //categoria: "dueño",
 
   // 📝 Descripción interna
   description: "Extrae contenido efímero y lo envía al owner",
