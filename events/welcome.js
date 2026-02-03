@@ -18,38 +18,43 @@ module.exports = async (client, update) => {
     const db = getDB();
     if (!db[id]?.enabled) return;
 
-    for (let user of participants) {
+    for (const user of participants) {
       const number = user.split("@")[0];
 
-      // 👋 ENTRA
+      // 🟢 ENTRA AL GRUPO
       if (action === "add") {
         await client.sendMessage(id, {
           image: { url: "https://i.imgur.com/Qp0RZQp.jpg" },
           caption: `
 👋 *BIENVENIDO AL GRUPO*
 
-🙋 @${number}
+🙋 *@${number}*
 
-📜 *REGLAS*
-1️⃣ Respeto  
-2️⃣ No spam  
-3️⃣ No porno  
-4️⃣ No links  
-5️⃣ Sigue admins  
+📜 *REGLAS DEL GRUPO*
+1️⃣ Respeto total entre miembros  
+2️⃣ Prohibido insultos, odio o acoso  
+3️⃣ No spam ni flood  
+4️⃣ No links sin permiso  
+5️⃣ Prohibido porno o contenido +18  
+6️⃣ Nada de estafas o engaños  
+7️⃣ Seguir indicaciones de los admins  
+8️⃣ No cambiar nombre o foto del grupo  
+9️⃣ No bots externos sin autorización  
 
-⚠️ Incumplir = expulsión
+⚠️ *El incumplimiento puede causar expulsión inmediata*
 `,
           mentions: [user],
         });
       }
 
-      // 👋 SALE
+      // 🔴 SALE DEL GRUPO
       if (action === "remove") {
         await client.sendMessage(id, {
           text: `
 👋 *HASTA LUEGO*
 
-😢 @${number} salió del grupo
+😢 *@${number}* salió del grupo.
+Gracias por haber sido parte.
 `,
           mentions: [user],
         });
