@@ -29,6 +29,9 @@ const os = require("os");
 const { smsg } = require("./lib/message");
 const { Boom } = require("@hapi/boom");
 
+// 👉 IMPORTAMOS BIENVENIDA
+const welcome = require("./events/welcome");
+
 /* ================== SESIÓN ================== */
 const sessionDir = global.sessionName || "SonGokuBot_session";
 if (!fs.existsSync(sessionDir)) {
@@ -100,7 +103,7 @@ async function startBot() {
     browser: ["Ubuntu", "Chrome", "22.04"],
   });
 
-  /* ================== AUTH (CORREGIDO) ================== */
+  /* ================== AUTH ================== */
   if (!state.creds.registered) {
     let phone = process.env.PAIRING_NUMBER;
 
@@ -163,6 +166,11 @@ async function startBot() {
     } catch (e) {
       console.log(e);
     }
+  });
+
+  /* ================== BIENVENIDA A GRUPOS ================== */
+  client.ev.on("group-participants.update", async (update) => {
+    await welcome(client, update);
   });
 
   client.decodeJid = (jid) => {
