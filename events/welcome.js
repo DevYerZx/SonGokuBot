@@ -24,7 +24,7 @@ module.exports = async (client, update) => {
       // 🟢 ENTRA AL GRUPO
       if (action === "add") {
         await client.sendMessage(id, {
-          image: { url: "https://i.imgur.com/Qp0RZQp.jpg" },
+          image: { url: "https://i.ibb.co/8nkQYcqY/file-00000000afdc720ebbb440ea6ed8b962-1.png" },
           caption: `
 👋 *BIENVENIDO AL GRUPO*
 
