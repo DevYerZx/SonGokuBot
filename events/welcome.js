@@ -8,7 +8,7 @@ const getDB = () => {
   return JSON.parse(fs.readFileSync(dbPath));
 };
 
-console.log("✅ welcome.js cargado");
+console.log("✅ welcome.js cargado correctamente");
 
 module.exports = async (update, client) => {
   try {
@@ -23,31 +23,53 @@ module.exports = async (update, client) => {
     for (const user of participants) {
       const number = user.split("@")[0];
 
-      // 🟢 ENTRA AL GRUPO
+      /* ======================
+         🟢 USUARIO ENTRA
+      ====================== */
       if (action === "add" || action === "invite") {
         await client.sendMessage(id, {
-          text: `👋 *BIENVENIDO AL GRUPO*
-
-🙋 *@${number}*
-
-📜 *REGLAS*
-1️⃣ Respeto  
-2️⃣ No insultos  
-3️⃣ No spam  
-4️⃣ No links sin permiso  
-5️⃣ No +18  
-6️⃣ No estafas  
-7️⃣ Seguir admins  
-
-⚠️ Incumplir = expulsión`,
+          image: {
+            url: "https://i.ibb.co/8nkQYcqY/file-00000000afdc720ebbb440ea6ed8b962-1.png"
+          },
+          caption: `
+╭───〔 👋 *BIENVENIDO* 〕───╮
+│
+│ 🙋 Usuario: *@${number}*
+│
+│ 📜 *REGLAS DEL GRUPO*
+│ 1️⃣ Respeto entre miembros
+│ 2️⃣ Prohibido insultos u odio
+│ 3️⃣ No spam ni flood
+│ 4️⃣ Links solo con permiso
+│ 5️⃣ Prohibido +18
+│ 6️⃣ Nada de estafas
+│ 7️⃣ Seguir a los admins
+│ 8️⃣ No bots externos
+│
+│ ⚠️ Incumplir reglas
+│ ⛔ Expulsión inmediata
+│
+╰────────────────────────╯
+`,
           mentions: [user],
         });
       }
 
-      // 🔴 SALE DEL GRUPO
+      /* ======================
+         🔴 USUARIO SALE
+      ====================== */
       if (action === "remove") {
         await client.sendMessage(id, {
-          text: `😢 *@${number}* salió del grupo.`,
+          text: `
+╭───〔 😢 *DESPEDIDA* 〕───╮
+│
+│ 👤 *@${number}*
+│ salió del grupo
+│
+│ 💭 Gracias por participar
+│
+╰───────────────────────╯
+`,
           mentions: [user],
         });
       }
