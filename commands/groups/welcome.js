@@ -13,19 +13,20 @@ module.exports = {
       if (!m.isGroup)
         return m.reply("❌ Este comando solo funciona en grupos");
 
-      // 🔐 METADATA DEL GRUPO
+      // 📌 OBTENER INFO DEL GRUPO
       const metadata = await client.groupMetadata(m.chat);
 
-      // NORMALIZAR JIDS
+      // 📌 NORMALIZAR JIDS
       const sender = client.decodeJid(m.sender);
-      const botNumber = client.decodeJid(client.user.id);
+      const botJid = client.decodeJid(client.user.id);
 
+      // 📌 LISTA REAL DE ADMINS
       const admins = metadata.participants
-        .filter(p => p.admin === "admin" || p.admin === "superadmin")
+        .filter(p => p.admin !== null)
         .map(p => client.decodeJid(p.id));
 
       const isAdmin = admins.includes(sender);
-      const isBotAdmin = admins.includes(botNumber);
+      const isBotAdmin = admins.includes(botJid);
 
       if (!isBotAdmin)
         return m.reply("❌ El bot debe ser admin del grupo");
@@ -37,8 +38,9 @@ module.exports = {
         return m.reply("📌 Uso: .welcome on / off");
 
       let db = {};
-      if (fs.existsSync(dbPath))
+      if (fs.existsSync(dbPath)) {
         db = JSON.parse(fs.readFileSync(dbPath));
+      }
 
       if (!db[m.chat]) db[m.chat] = { enabled: false };
 
@@ -57,7 +59,7 @@ module.exports = {
       return m.reply("📌 Uso correcto: .welcome on / off");
     } catch (e) {
       console.log("❌ Error comando welcome:", e);
-      m.reply("❌ Ocurrió un error");
+      return m.reply("❌ Error interno");
     }
   },
 };
