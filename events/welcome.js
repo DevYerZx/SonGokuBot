@@ -8,54 +8,46 @@ const getDB = () => {
   return JSON.parse(fs.readFileSync(dbPath));
 };
 
-const saveDB = (db) =>
-  fs.writeFileSync(dbPath, JSON.stringify(db, null, 2));
+console.log("✅ welcome.js cargado");
 
 module.exports = async (client, update) => {
   try {
+    console.log("📥 Evento recibido:", update);
+
     const { id, participants, action } = update;
+    if (!id || !participants) return;
 
     const db = getDB();
-    if (!db[id]?.enabled) return;
+    if (!db[id] || db[id].enabled !== true) return;
 
     for (const user of participants) {
       const number = user.split("@")[0];
 
-      // 🟢 ENTRA AL GRUPO
-      if (action === "add") {
+      // 🟢 ENTRADA (add / invite)
+      if (action === "add" || action === "invite") {
         await client.sendMessage(id, {
-          image: { url: "https://i.ibb.co/8nkQYcqY/file-00000000afdc720ebbb440ea6ed8b962-1.png" },
-          caption: `
-👋 *BIENVENIDO AL GRUPO*
+          text: `👋 *BIENVENIDO AL GRUPO*
 
 🙋 *@${number}*
 
 📜 *REGLAS DEL GRUPO*
-1️⃣ Respeto total entre miembros  
-2️⃣ Prohibido insultos, odio o acoso  
-3️⃣ No spam ni flood  
+1️⃣ Respeto total  
+2️⃣ No insultos ni odio  
+3️⃣ No spam / flood  
 4️⃣ No links sin permiso  
-5️⃣ Prohibido porno o contenido +18  
-6️⃣ Nada de estafas o engaños  
-7️⃣ Seguir indicaciones de los admins  
-8️⃣ No cambiar nombre o foto del grupo  
-9️⃣ No bots externos sin autorización  
+5️⃣ No contenido +18  
+6️⃣ No estafas  
+7️⃣ Seguir indicaciones de admins  
 
-⚠️ *El incumplimiento puede causar expulsión inmediata*
-`,
+⚠️ Incumplir reglas = expulsión`,
           mentions: [user],
         });
       }
 
-      // 🔴 SALE DEL GRUPO
+      // 🔴 SALIDA
       if (action === "remove") {
         await client.sendMessage(id, {
-          text: `
-👋 *HASTA LUEGO*
-
-😢 *@${number}* salió del grupo.
-Gracias por haber sido parte.
-`,
+          text: `😢 *@${number}* salió del grupo.`,
           mentions: [user],
         });
       }
