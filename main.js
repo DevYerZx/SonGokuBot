@@ -12,6 +12,9 @@ const initDB = require("./lib/system/initDB")
 const antilink = require("./commands/antilink")
 const { resolveLidToRealJid } = require("./lib/utils")
 
+// 🔹 AÑADIDO: IMPORTA SISTEMA DE SUBBOTS
+require("./subbot")
+
 /* ================== CARGAR COMANDOS ================== */
 seeCommands()
 
@@ -165,4 +168,3 @@ fs.watchFile(mainFile, () => {
   delete require.cache[mainFile]
   require(mainFile)
 })
-
