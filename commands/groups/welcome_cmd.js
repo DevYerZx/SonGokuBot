@@ -1,88 +1,54 @@
 const fs = require("fs");
 const path = require("path");
 
-const dirPath = path.join(__dirname, "../database");
-const dbPath = path.join(dirPath, "welcome.json");
+const dbPath = path.join(__dirname, "../database/welcome.json");
 
 module.exports = {
   command: ["welcome"],
-    categoria: "grupos",
+  categoria: "grupos",
   description: "Activar o desactivar bienvenida",
 
   run: async (client, m, args) => {
     try {
-      // ✅ SOLO GRUPOS
       if (!m.isGroup) {
-        return client.sendMessage(
-          m.chat,
-          { text: "❌ Este comando solo funciona en grupos" },
-          { quoted: m }
-        );
+        return m.reply("❌ Este comando solo funciona en grupos");
       }
 
-      // ✅ USO
       if (!args[0]) {
-        return client.sendMessage(
-          m.chat,
-          { text: "📌 Uso: .welcome on / off" },
-          { quoted: m }
-        );
+        return m.reply("📌 Uso: .welcome on / off");
       }
 
-      // ✅ CREAR CARPETA /database
-      if (!fs.existsSync(dirPath)) {
-        fs.mkdirSync(dirPath, { recursive: true });
-      }
+      // ✅ ID REAL DEL GRUPO (CLAVE)
+      const groupId = m.chat.endsWith("@g.us")
+        ? m.chat
+        : m.key.remoteJid;
 
-      // ✅ CREAR ARCHIVO welcome.json
       if (!fs.existsSync(dbPath)) {
+        fs.mkdirSync(path.dirname(dbPath), { recursive: true });
         fs.writeFileSync(dbPath, "{}");
       }
 
-      // ✅ LEER DB
-      let db = JSON.parse(fs.readFileSync(dbPath));
+      const db = JSON.parse(fs.readFileSync(dbPath));
 
-      if (!db[m.chat]) db[m.chat] = { enabled: false };
+      if (!db[groupId]) db[groupId] = { enabled: false };
 
-      // ✅ ON
       if (args[0] === "on") {
-        db[m.chat].enabled = true;
+        db[groupId].enabled = true;
         fs.writeFileSync(dbPath, JSON.stringify(db, null, 2));
-
-        return client.sendMessage(
-          m.chat,
-          { text: "✅ Bienvenida activada en este grupo" },
-          { quoted: m }
-        );
+        return m.reply("✅ Bienvenida activada en este grupo");
       }
 
-      // ✅ OFF
       if (args[0] === "off") {
-        db[m.chat].enabled = false;
+        db[groupId].enabled = false;
         fs.writeFileSync(dbPath, JSON.stringify(db, null, 2));
-
-        return client.sendMessage(
-          m.chat,
-          { text: "❌ Bienvenida desactivada en este grupo" },
-          { quoted: m }
-        );
+        return m.reply("❌ Bienvenida desactivada en este grupo");
       }
 
-      // ❌ MAL USO
-      return client.sendMessage(
-        m.chat,
-        { text: "📌 Uso correcto: .welcome on / off" },
-        { quoted: m }
-      );
+      return m.reply("📌 Uso correcto: .welcome on / off");
 
-    } catch (err) {
-      console.log("❌ ERROR REAL welcome command:", err);
-
-      return client.sendMessage(
-        m.chat,
-        { text: "❌ Error interno (revisa consola)" },
-        { quoted: m }
-      );
+    } catch (e) {
+      console.log("❌ Error welcome command:", e);
+      return m.reply("❌ Error interno");
     }
   },
 };
