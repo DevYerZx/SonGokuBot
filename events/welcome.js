@@ -1,36 +1,61 @@
+const fs = require("fs");
+const path = require("path");
+
+const dbPath = path.join(__dirname, "../database/welcome.json");
+
+const getDB = () => {
+  if (!fs.existsSync(dbPath)) fs.writeFileSync(dbPath, "{}");
+  return JSON.parse(fs.readFileSync(dbPath));
+};
+
+const saveDB = (db) =>
+  fs.writeFileSync(dbPath, JSON.stringify(db, null, 2));
+
 module.exports = async (client, update) => {
   try {
     const { id, participants, action } = update;
 
-    // Solo cuando alguien entra
-    if (action !== "add") return;
+    const db = getDB();
+    if (!db[id]?.enabled) return;
 
     for (let user of participants) {
       const number = user.split("@")[0];
 
-      const text = `
+      // 👋 ENTRA
+      if (action === "add") {
+        await client.sendMessage(id, {
+          image: { url: "https://i.imgur.com/Qp0RZQp.jpg" },
+          caption: `
 👋 *BIENVENIDO AL GRUPO*
 
 🙋 @${number}
 
-📜 *REGLAS DEL GRUPO*
-1️⃣ Respeto obligatorio  
-2️⃣ No spam ni links  
+📜 *REGLAS*
+1️⃣ Respeto  
+2️⃣ No spam  
 3️⃣ No porno  
-4️⃣ No insultos  
-5️⃣ Sigue a los admins  
+4️⃣ No links  
+5️⃣ Sigue admins  
 
-⚠️ El incumplimiento = expulsión
+⚠️ Incumplir = expulsión
+`,
+          mentions: [user],
+        });
+      }
 
-🔥 Disfruta el grupo 😎
-`;
+      // 👋 SALE
+      if (action === "remove") {
+        await client.sendMessage(id, {
+          text: `
+👋 *HASTA LUEGO*
 
-      await client.sendMessage(id, {
-        text,
-        mentions: [user]
-      });
+😢 @${number} salió del grupo
+`,
+          mentions: [user],
+        });
+      }
     }
   } catch (e) {
-    console.log("❌ Error bienvenida:", e);
+    console.log("❌ Error welcome:", e);
   }
 };
