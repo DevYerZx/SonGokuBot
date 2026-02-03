@@ -10,7 +10,7 @@ const getDB = () => {
 
 console.log("✅ welcome.js cargado");
 
-module.exports = async (client, update) => {
+module.exports = async (update, client) => {
   try {
     console.log("📥 Evento recibido:", update);
 
@@ -18,33 +18,33 @@ module.exports = async (client, update) => {
     if (!id || !participants) return;
 
     const db = getDB();
-    if (!db[id] || db[id].enabled !== true) return;
+    if (!db[id]?.enabled) return;
 
     for (const user of participants) {
       const number = user.split("@")[0];
 
-      // 🟢 ENTRADA (add / invite)
+      // 🟢 ENTRA AL GRUPO
       if (action === "add" || action === "invite") {
         await client.sendMessage(id, {
           text: `👋 *BIENVENIDO AL GRUPO*
 
 🙋 *@${number}*
 
-📜 *REGLAS DEL GRUPO*
-1️⃣ Respeto total  
-2️⃣ No insultos ni odio  
-3️⃣ No spam / flood  
+📜 *REGLAS*
+1️⃣ Respeto  
+2️⃣ No insultos  
+3️⃣ No spam  
 4️⃣ No links sin permiso  
-5️⃣ No contenido +18  
+5️⃣ No +18  
 6️⃣ No estafas  
-7️⃣ Seguir indicaciones de admins  
+7️⃣ Seguir admins  
 
-⚠️ Incumplir reglas = expulsión`,
+⚠️ Incumplir = expulsión`,
           mentions: [user],
         });
       }
 
-      // 🔴 SALIDA
+      // 🔴 SALE DEL GRUPO
       if (action === "remove") {
         await client.sendMessage(id, {
           text: `😢 *@${number}* salió del grupo.`,
