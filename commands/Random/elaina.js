@@ -20,8 +20,8 @@ module.exports = {
         "https://gawrgura-api.onrender.com/random/elaina"
       );
 
-      // ⚠️ La API devuelve la imagen en distintos formatos
-      const imgUrl =
+      // 🧼 Extraer y LIMPIAR la URL
+      let imgUrl =
         res.data?.url ||
         res.data?.result ||
         res.data?.image ||
@@ -36,9 +36,16 @@ module.exports = {
         );
       }
 
-      // ⬇️ Descargar imagen como BUFFER (solución real)
+      // 🔧 LIMPIEZA CLAVE (esto evita el error)
+      imgUrl = imgUrl.trim();          // quita espacios
+      imgUrl = encodeURI(imgUrl);      // escapa caracteres raros
+
+      // ⬇️ Descargar imagen como BUFFER
       const img = await axios.get(imgUrl, {
-        responseType: "arraybuffer"
+        responseType: "arraybuffer",
+        headers: {
+          "User-Agent": "Mozilla/5.0"
+        }
       });
 
       // 🖼️ Enviar imagen (con info channel)
@@ -58,11 +65,12 @@ module.exports = {
       console.error(err);
       return client.reply(
         m.chat,
-        "❌ Error al enviar la imagen de Elaina.",
+        "❌ Error al descargar la imagen de Elaina.",
         m,
         global.channelInfo
       );
     }
   }
 };
+
 
