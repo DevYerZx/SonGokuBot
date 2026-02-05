@@ -7,6 +7,14 @@ module.exports = {
 
   run: async (client, m, args) => {
     try {
+      await client.reply(
+        m.chat,
+        "🇰🇷 Enviando imagen Korea, espera un momento...",
+        m,
+        global.channelInfo
+      );
+
+      // 🌐 Llamada a la API
       const res = await axios.get(
         "https://api.soymaycol.icu/korea?apikey=may-3697c22b"
       );
@@ -20,7 +28,6 @@ module.exports = {
         );
       }
 
-      // 🖼️ Enviar imagen con info channel
       await client.sendMessage(
         m.chat,
         {
@@ -33,8 +40,8 @@ module.exports = {
         }
       );
 
-    } catch (e) {
-      console.error(e);
+    } catch (err) {
+      console.error(err);
       return client.reply(
         m.chat,
         "❌ Error al conectar con la API Korea.",
@@ -44,3 +51,4 @@ module.exports = {
     }
   }
 };
+
