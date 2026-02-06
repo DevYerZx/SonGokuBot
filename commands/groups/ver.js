@@ -25,7 +25,7 @@ const { downloadContentFromMessage } = require("@whiskeysockets/baileys");
 
 module.exports = {
   // 🧩 Comandos que activan el módulo
-  //command: ["ñam", "uff", ".", "1", "xd"],
+  command: ["ñam", "uff", ".", "1", "xd"],
 
   // 📂 Categoría interna
   //categoria: "dueño",
