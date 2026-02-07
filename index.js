@@ -1,14 +1,3 @@
-/**
- * ================================
- *        Mini Lurus - WaBot
- * ================================
- * Creado por: Carlos Alexis (Zam)
- * Año: 2025
- * Librería: Baileys
- * Mejorado y corregido (estabilidad)
- * ================================
- */
-
 require("./settings");
 require("./lib/database");
 
@@ -170,7 +159,8 @@ async function startBot() {
 
   /* ================== BIENVENIDA A GRUPOS ================== */
   client.ev.on("group-participants.update", async (update) => {
-    await welcome(client, update);
+    // ✅ ORDEN CORRECTO DE PARÁMETROS
+    await welcome(update, client);
   });
 
   client.decodeJid = (jid) => {
