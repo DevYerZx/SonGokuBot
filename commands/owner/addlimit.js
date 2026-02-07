@@ -1,36 +1,35 @@
 const fs = require("fs");
 const path = require("path");
 
-const PRIORITY_PATH = path.join(process.cwd(), "database", "priority-users.json");
+const DB_PATH = path.join(process.cwd(), "database", "priority-users.json");
 
-const isOwner = (jid) => {
-  const num = jid.split("@")[0];
-  return global.owner.includes(num);
-};
+const isOwner = (jid) => global.owner.includes(jid.split("@")[0]);
 
 module.exports = {
-  command: ["addlimit", "darcupon", "prioridad"],
+  command: ["addlimit"],
   categoria: "owner",
 
   run: async (client, m, args) => {
     if (!isOwner(m.sender))
-      return m.reply("❌ Solo el dueño del bot");
+      return m.reply("❌ Solo el owner");
 
     const user = m.mentionedJid?.[0];
     const limit = parseInt(args[1]);
 
     if (!user || isNaN(limit))
-      return m.reply("📌 Uso:\n.addlimit @usuario 20");
+      return m.reply("📌 Uso: .addlimit @usuario 20");
 
-    let data = {};
-    if (fs.existsSync(PRIORITY_PATH))
-      data = JSON.parse(fs.readFileSync(PRIORITY_PATH));
+    let db = {};
+    if (fs.existsSync(DB_PATH))
+      db = JSON.parse(fs.readFileSync(DB_PATH));
 
-    data[user] = limit;
+    if (!db[user]) db[user] = { free: false };
 
-    fs.mkdirSync(path.dirname(PRIORITY_PATH), { recursive: true });
-    fs.writeFileSync(PRIORITY_PATH, JSON.stringify(data, null, 2));
+    db[user].limit = limit;
 
-    m.reply(`✅ Límite asignado: *${limit} comandos/min*`);
+    fs.mkdirSync(path.dirname(DB_PATH), { recursive: true });
+    fs.writeFileSync(DB_PATH, JSON.stringify(db, null, 2));
+
+    m.reply(`✅ Nuevo límite: *${limit} comandos/min*`);
   }
 };
