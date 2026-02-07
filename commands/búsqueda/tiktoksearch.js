@@ -1,14 +1,31 @@
 const axios = require("axios");
 
-// 🔍 API
+/* ======================
+   🔍 API
+====================== */
 const SEARCH_API = "https://gawrgura-api.onrender.com/search/tiktok";
 
-// 🤖 BOT
+/* ======================
+   🤖 BOT
+====================== */
 const BOT_NAME = "SonGokuBot";
 
-// ⏳ COOLDOWN
+/* ======================
+   ⏳ COOLDOWN
+====================== */
 const cooldowns = new Map();
-const COOLDOWN_TIME = 30 * 1000; // 15 segundos
+const COOLDOWN_TIME = 30 * 1000; // 30 segundos
+
+const setCooldown = (id) => {
+  cooldowns.set(id, Date.now() + COOLDOWN_TIME);
+  setTimeout(() => cooldowns.delete(id), COOLDOWN_TIME);
+};
+
+const checkCooldown = (id) => {
+  if (!cooldowns.has(id)) return 0;
+  const remaining = cooldowns.get(id) - Date.now();
+  return remaining > 0 ? remaining : 0;
+};
 
 module.exports = {
   command: ["tiktoksearch", "tiktokbuscar", "ttks"],
@@ -18,53 +35,52 @@ module.exports = {
   run: async (client, m, args) => {
     const userId = m.sender;
 
-    // 🔒 Verificar cooldown
-    if (cooldowns.has(userId)) {
-      const expire = cooldowns.get(userId);
-      const remaining = expire - Date.now();
-
-      if (remaining > 0) {
-        return client.reply(
-          m.chat,
-          `⏳ Espera *${Math.ceil(remaining / 1000)} segundos* antes de volver a usar este comando.`,
-          m,
-          global.channelInfo
-        );
-      }
+    /* ======================
+       🔒 COOLDOWN
+    ====================== */
+    const remaining = checkCooldown(userId);
+    if (remaining > 0) {
+      return client.reply(
+        m.chat,
+        `⏳ Espera *${Math.ceil(remaining / 1000)}s* antes de volver a usar este comando.`,
+        m,
+        global.channelInfo
+      );
     }
 
-    // ✅ Activar cooldown
-    cooldowns.set(userId, Date.now() + COOLDOWN_TIME);
+    const query = args.join(" ").trim();
+    if (!query) {
+      return client.reply(
+        m.chat,
+        "❌ Uso correcto:\n.tiktoksearch <palabra>\nEjemplo:\n.tiktoksearch goku",
+        m,
+        global.channelInfo
+      );
+    }
+
+    setCooldown(userId);
 
     try {
-      const query = args.join(" ").trim();
-
-      if (!query) {
-        cooldowns.delete(userId);
-        return client.reply(
-          m.chat,
-          "❌ Usa:\n.tiktoksearch <palabra>\nEjemplo:\n.tiktoksearch goku",
-          m,
-          global.channelInfo
-        );
-      }
-
-      // ⏳ Mensaje UX
+      /* ======================
+         ⏳ MENSAJE UX
+      ====================== */
       await client.reply(
         m.chat,
-        `🔍 *Buscando en TikTok...*\n📌 ${query}\n🤖 ${BOT_NAME}`,
+        `🔍 *Buscando en TikTok...*\n📌 *${query}*\n🤖 ${BOT_NAME}`,
         m,
         global.channelInfo
       );
 
-      // 📡 API
-      const res = await axios.get(
+      /* ======================
+         📡 API
+      ====================== */
+      const { data } = await axios.get(
         `${SEARCH_API}?q=${encodeURIComponent(query)}`,
-        { timeout: 60000 }
+        { timeout: 20000 }
       );
 
-      const results = res.data?.result;
-      if (!Array.isArray(results) || results.length === 0) {
+      const results = Array.isArray(data?.result) ? data.result : [];
+      if (!results.length) {
         cooldowns.delete(userId);
         return client.reply(
           m.chat,
@@ -74,27 +90,24 @@ module.exports = {
         );
       }
 
-      // Limitar a 5 resultados
+      /* ======================
+         🎬 RESULTADOS
+      ====================== */
       const videos = results.slice(0, 5);
+      let index = 1;
 
-      await client.reply(
-        m.chat,
-        `🎬 *${videos.length} resultados encontrados*`,
-        m,
-        global.channelInfo
-      );
-
-      // Enviar videos uno por uno
-      let i = 1;
       for (const v of videos) {
+        if (!v?.play) continue;
+
         const caption =
-          `╭━━〔 🎵 TikTok #${i} 🎵 〕━━╮\n` +
-          `┃ 👤 Autor: ${v.author?.nickname || "Desconocido"}\n` +
-          `┃ ❤️ Likes: ${v.digg_count || 0} | 👁 Vistas: ${v.play_count || 0}\n` +
-          `┃ ⏱ Duración: ${v.duration || 0}s\n` +
-          `┃ 🔗 Link: ${v.url || "Sin link"}\n` +
-          `╰━━━━━━━━━━━━━━━━━━━━╯\n` +
-          `🤖 ${BOT_NAME}`;
+`╭━━〔 🎵 TikTok #${index} 🎵 〕━━╮
+┃ 👤 Autor: ${v.author?.nickname || "Desconocido"}
+┃ ❤️ Likes: ${v.digg_count || 0}
+┃ 👁 Vistas: ${v.play_count || 0}
+┃ ⏱ Duración: ${v.duration || 0}s
+┃ 🔗 Link: ${v.url || "No disponible"}
+╰━━━━━━━━━━━━━━━━━━━━╯
+🤖 ${BOT_NAME}`;
 
         await client.sendMessage(
           m.chat,
@@ -105,20 +118,19 @@ module.exports = {
           { quoted: m, ...global.channelInfo }
         );
 
-        i++;
+        index++;
       }
 
     } catch (err) {
-      console.error("TIKTOK SEARCH ERROR:", err.response?.data || err.message);
+      console.error("❌ TIKTOK SEARCH ERROR:", err?.message || err);
       cooldowns.delete(userId);
 
-      await client.reply(
+      return client.reply(
         m.chat,
-        "❌ Error al buscar videos de TikTok.",
+        "❌ Error al buscar videos de TikTok.\nIntenta nuevamente más tarde.",
         m,
         global.channelInfo
       );
     }
   }
 };
-
