@@ -10,6 +10,7 @@ module.exports = {
   run: async (client, m, args) => {
     try {
       if (!m.isGroup) return m.reply("❌ Solo en grupos");
+      if (!m.isAdmin) return m.reply("❌ Solo admins del grupo");
       if (!args[0]) return m.reply("📌 Uso: .welcome on / off");
 
       if (!fs.existsSync(dbPath)) {
@@ -17,7 +18,7 @@ module.exports = {
         fs.writeFileSync(dbPath, "{}");
       }
 
-      const db = JSON.parse(fs.readFileSync(dbPath));
+      const db = JSON.parse(fs.readFileSync(dbPath, "utf-8"));
       const groupId = m.chat;
 
       if (!db[groupId]) db[groupId] = {};
@@ -34,9 +35,12 @@ module.exports = {
         return m.reply("❌ Bienvenida desactivada");
       }
 
+      return m.reply("📌 Uso correcto: .welcome on / off");
+
     } catch (e) {
       console.log(e);
-      m.reply("❌ Error");
+      return m.reply("❌ Error al procesar el comando");
     }
   },
 };
+
