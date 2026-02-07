@@ -4,18 +4,21 @@ const path = require("path");
 const dbPath = path.join(__dirname, "../database/welcome.json");
 
 const getDB = () => {
-  if (!fs.existsSync(dbPath)) fs.writeFileSync(dbPath, "{}");
-  return JSON.parse(fs.readFileSync(dbPath));
+  if (!fs.existsSync(dbPath)) {
+    fs.mkdirSync(path.dirname(dbPath), { recursive: true });
+    fs.writeFileSync(dbPath, "{}");
+  }
+  return JSON.parse(fs.readFileSync(dbPath, "utf-8"));
 };
 
 console.log("✅ welcome.js cargado correctamente");
 
 module.exports = async (update, client) => {
   try {
-    console.log("📥 Evento recibido:", update);
+    if (!update || !client) return;
 
     const { id, participants, action } = update;
-    if (!id || !participants) return;
+    if (!id || !participants || !action) return;
 
     const db = getDB();
     if (!db[id]?.enabled) return;
@@ -29,7 +32,7 @@ module.exports = async (update, client) => {
       if (action === "add" || action === "invite") {
         await client.sendMessage(id, {
           image: {
-            url: "https://i.ibb.co/8nkQYcqY/file-00000000afdc720ebbb440ea6ed8b962-1.png"
+            url: "https://i.ibb.co/8nkQYcqY/file-00000000afdc720ebbb440ea6ed8b962-1.png",
           },
           caption: `
 ╭───〔 👋 *BIENVENIDO* 〕───╮
@@ -75,6 +78,6 @@ module.exports = async (update, client) => {
       }
     }
   } catch (e) {
-    console.log("❌ Error welcome:", e);
+    console.log("❌ Error welcome:", e?.message || e);
   }
 };
