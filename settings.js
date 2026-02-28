@@ -23,7 +23,7 @@ global.mess = {
 global.thumbnailUrl = "https://i.ibb.co/JR8Qz9j6/20251204-0617-Retrato-Misterioso-Mejorado-remix-01kbmh4newf9k8r1r0bafmxr46.png"; // Cambia esta imagen
 
 global.my = {
-  ch: "120363401477412280@newsletter",
+  ch: "120363423619533679@newsletter",
 };
 
 global.channelInfo = {
