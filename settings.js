@@ -31,7 +31,7 @@ global.channelInfo = {
     forwardingScore: 999,
     isForwarded: true,
     forwardedNewsletterMessageInfo: {
-      newsletterJid: "120363423619533679@newsletter", // ID de tu canal
+      newsletterJid: "120363354701957370@newsletter", // ID de tu canal
       newsletterName: "SonGokuBot DvYer",
       serverMessageId: -1,
     },
