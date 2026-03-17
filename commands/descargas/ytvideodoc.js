@@ -1,132 +1,136 @@
-const axios = require("axios");
-const yts = require("yt-search");
 const fs = require("fs");
 const path = require("path");
+const {
+  deleteFileSafe,
+  downloadAbsoluteFile,
+  ensureTmpDir,
+  extractYouTubeUrl,
+  getCooldownRemaining,
+  isHttpUrl,
+  normalizeMp4Name,
+  normalizeVideoForWhatsApp,
+  resolveFastestVideo,
+  resolveYouTubeSearch,
+  safeFileName,
+  stripExtension,
+} = require("../../lib/dvyerApi");
 
-const BOT_NAME = "SonGokuBot";
-const API_URL = "https://gawrgura-api.onrender.com/download/ytdl";
+const BOT_NAME = global.namebot || "SonGokuBot";
+const VIDEO_QUALITY = "360p";
+const COOLDOWN_TIME = 15 * 1000;
+const MAX_VIDEO_BYTES = 200 * 1024 * 1024;
+const TMP_DIR = ensureTmpDir("ytdoc");
 
-// ⏳ COOLDOWN
 const cooldowns = new Map();
-const COOLDOWN_TIME = 15 * 1000; // 15 segundos
 
 module.exports = {
   command: ["ytdoc"],
   categoria: "descarga",
-  description: "Descarga video de YouTube y lo envía como documento",
+  description: "Descarga video de YouTube y lo envia como documento",
 
   run: async (client, m, args) => {
-    let filePath;
-    const userId = m.sender;
+    let rawVideoFile = null;
+    let finalVideoFile = null;
+    const userId = `${m.sender}:ytdoc`;
 
-    // 🔒 Cooldown
-    if (cooldowns.has(userId)) {
-      const remaining = cooldowns.get(userId) - Date.now();
-      if (remaining > 0) {
-        return client.reply(
-          m.chat,
-          `⏳ *Espera ${Math.ceil(remaining / 1000)}s* antes de volver a usar el comando.`,
-          m,
-          global.channelInfo
-        );
-      }
+    const until = cooldowns.get(userId);
+    if (until && until > Date.now()) {
+      return client.reply(
+        m.chat,
+        `⏳ Espera ${getCooldownRemaining(until)}s antes de volver a usar este comando.`,
+        m,
+        global.channelInfo,
+      );
     }
+
     cooldowns.set(userId, Date.now() + COOLDOWN_TIME);
 
     try {
-      if (!args.length) {
+      const rawInput = args.join(" ").trim();
+      if (!rawInput) {
         cooldowns.delete(userId);
         return client.reply(
           m.chat,
-          "❌ *Ingresa un enlace o nombre del video de YouTube.*",
+          "❌ Usa .ytdoc <nombre o link de YouTube>",
           m,
-          global.channelInfo
+          global.channelInfo,
         );
       }
 
-      let videoUrl = args.join(" ");
+      let videoUrl = extractYouTubeUrl(rawInput);
       let title = "video";
 
-      // 🔍 Buscar si no es URL
-      if (!videoUrl.startsWith("http")) {
-        const search = await yts(videoUrl);
-        if (!search.videos?.length) {
+      if (!videoUrl) {
+        if (isHttpUrl(rawInput)) {
           cooldowns.delete(userId);
           return client.reply(
             m.chat,
-            "❌ *No se encontraron resultados.*",
+            "❌ Envia un link valido de YouTube.",
             m,
-            global.channelInfo
+            global.channelInfo,
           );
         }
-        videoUrl = search.videos[0].url;
-        title = search.videos[0].title || title;
+
+        const search = await resolveYouTubeSearch(rawInput);
+        videoUrl = search.videoUrl;
+        title = search.title;
       }
 
       await client.reply(
         m.chat,
-        `╭━━━〔 🎬 𝐘𝐓 𝐕𝐈𝐃𝐄𝐎 〕━━━╮
-┃ ⏳ Descargando video…
-┃ 🤖 ${BOT_NAME}
-╰━━━━━━━━━━━━━━━━━━━━╯`,
+        `🎬 Descargando video como documento...\n🤖 ${BOT_NAME}`,
         m,
-        global.channelInfo
+        global.channelInfo,
       );
 
-      // 🌐 API
-      const res = await axios.get(API_URL, {
-        params: { url: videoUrl },
-        timeout: 120000
+      const linkResult = await resolveFastestVideo(videoUrl, VIDEO_QUALITY);
+      title = safeFileName(linkResult.title || title || "video");
+
+      const stamp = Date.now();
+      rawVideoFile = path.join(TMP_DIR, `${stamp}-raw.mp4`);
+      finalVideoFile = path.join(TMP_DIR, `${stamp}-final.mp4`);
+
+      const downloaded = await downloadAbsoluteFile(linkResult.resolvedDownloadUrl, {
+        outputPath: rawVideoFile,
+        maxBytes: MAX_VIDEO_BYTES,
+        minBytes: 150000,
       });
 
-      const data = res.data?.result;
-      if (!data?.mp4) throw new Error("Respuesta inválida");
+      const normalized = await normalizeVideoForWhatsApp(
+        downloaded.tempPath,
+        finalVideoFile,
+      );
+      const sendPath =
+        normalized && fs.existsSync(finalVideoFile) ? finalVideoFile : rawVideoFile;
+      const finalTitle = safeFileName(
+        stripExtension(linkResult.fileName || `${title}.mp4`) || title,
+      );
 
-      const safeTitle = (data.title || title)
-        .replace(/[\\/:*?"<>|]/g, "")
-        .trim()
-        .slice(0, 60);
-
-      const tmpPath = path.join(__dirname, "../../tmp");
-      fs.mkdirSync(tmpPath, { recursive: true });
-
-      const videoRes = await axios.get(data.mp4, {
-        responseType: "arraybuffer",
-        timeout: 300000
-      });
-
-      filePath = path.join(tmpPath, `${Date.now()}_${userId}.mp4`);
-      fs.writeFileSync(filePath, videoRes.data);
-
-      // 📁 ENVIAR COMO DOCUMENTO
       await client.sendMessage(
         m.chat,
         {
-          document: fs.readFileSync(filePath),
+          document: { url: sendPath },
           mimetype: "video/mp4",
-          fileName: `${safeTitle}.mp4`,
+          fileName: normalizeMp4Name(linkResult.fileName || `${finalTitle}.mp4`),
           caption:
-`╭━━━〔 📁 𝐕𝐈𝐃𝐄𝐎 𝐘𝐓 〕━━━╮
-┃ 🎬 *Título:* ${safeTitle}
-┃ 📦 *Formato:* MP4
-┃ 🤖 *Bot:* ${BOT_NAME}
-╰━━━━━━━━━━━━━━━━━━━━╯`
+            `📁 VIDEO YT\n\n` +
+            `🎬 ${finalTitle}\n` +
+            `🎞 Calidad: ${VIDEO_QUALITY}\n` +
+            `🤖 ${BOT_NAME}`,
         },
-        { quoted: m, ...global.channelInfo }
+        { quoted: m, ...global.channelInfo },
       );
-
-    } catch (err) {
+    } catch (error) {
       cooldowns.delete(userId);
       await client.reply(
         m.chat,
-        "❌ *Error al descargar o enviar el video.*",
+        String(error?.message || "❌ Error al descargar o enviar el video."),
         m,
-        global.channelInfo
+        global.channelInfo,
       );
     } finally {
-      if (filePath && fs.existsSync(filePath)) {
-        fs.unlinkSync(filePath);
-      }
+      deleteFileSafe(rawVideoFile);
+      deleteFileSafe(finalVideoFile);
     }
-  }
+  },
 };

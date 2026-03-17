@@ -1,4 +1,9 @@
-const { apiGet, normalizeApiUrl, pickApiDownloadUrl } = require("../../lib/dvyerApi");
+const {
+  apiGet,
+  assertSafeRemoteUrl,
+  normalizeApiUrl,
+  pickApiDownloadUrl,
+} = require("../../lib/dvyerApi");
 
 const API_BASE = global.api?.baseUrl || "https://dv-yer-api.online";
 
@@ -53,6 +58,8 @@ module.exports = {
           global.channelInfo,
         );
       }
+
+      await assertSafeRemoteUrl(videoUrl);
 
       const title = String(data?.title || data?.filename || "facebook").trim();
       const caption = `📘 FB DOWNLOADER\n\n🎬 ${title}\n🔗 ${inputUrl}\n🤖 SonGokuBot`;

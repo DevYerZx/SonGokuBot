@@ -32,10 +32,12 @@ process.on("uncaughtException", (error) =>
   console.log("EXCEPCION NO CAPTURADA:", error?.message || error),
 );
 
-const print = (label, value) =>
+const print = (label, value, tone = "cyan") => {
+  const color = chalk[tone] || chalk.cyan;
   console.log(
-    `${chalk.green.bold("|")} ${chalk.cyan.bold(label.padEnd(16))}${chalk.magenta.bold(":")} ${value}`,
+    `${chalk.hex("#ff8c42")("│")} ${chalk.gray(label.padEnd(14))} ${chalk.hex("#39c5bb")("•")} ${color(value)}`,
   );
+};
 
 const log = {
   info: (msg) => console.log(chalk.bgBlue.white(" INFO "), msg),
@@ -66,13 +68,28 @@ const safeUser = () => {
   }
 };
 
-console.log(
-  chalk.yellow.bold(`=====[${safeUser()}@${os.hostname()}]=====`),
-);
-print("OS", `${os.platform()} ${os.arch()}`);
-print("Node.js", process.version);
-print("Baileys", "WhiskeySockets");
-console.log(chalk.yellow.bold("===================================="));
+function renderStartupBanner() {
+  const banner = [
+    "",
+    chalk.hex("#ff8c42")("┌──────────────────────────────────────────────────────┐"),
+    chalk.hex("#ff8c42")("│") +
+      chalk.bold.hex("#f4efe7")("                  SonGokuBOT Runtime                  ") +
+      chalk.hex("#ff8c42")("│"),
+    chalk.hex("#ff8c42")("└──────────────────────────────────────────────────────┘"),
+  ];
+
+  console.log(banner.join("\n"));
+  print("Usuario", `${safeUser()}@${os.hostname()}`, "white");
+  print("Sistema", `${os.platform()} ${os.arch()}`, "green");
+  print("Node", process.version, "yellow");
+  print("Baileys", "WhiskeySockets", "magenta");
+  print("API", global.api?.baseUrl || "No configurada", "cyan");
+  print("Sesion", sessionDir, "white");
+  print("Puerto", String(PORT), "green");
+  console.log(chalk.hex("#39c5bb")("────────────────────────────────────────────────────────"));
+}
+
+renderStartupBanner();
 
 const logger = pino({ level: "silent" });
 const store = makeInMemoryStore({ logger });
@@ -88,6 +105,14 @@ let isStarting = false;
 let reconnectTimer = null;
 let reconnectAttempts = 0;
 let shuttingDown = false;
+
+global.__songoku_runtime = {
+  startedAt: Date.now(),
+  connectionState: "starting",
+  reconnectAttempts: 0,
+  sessionDir,
+  port: Number(PORT),
+};
 
 function sanitizePhoneNumber(value) {
   return String(value || "").replace(/\D/g, "");
@@ -106,14 +131,17 @@ function startHttpServer() {
 
   server.on("error", (error) => {
     if (error?.code === "EADDRINUSE") {
+      global.__songoku_runtime.httpState = "port-in-use";
       log.warning(`Puerto ${PORT} ya esta en uso, se omite el servidor HTTP.`);
       return;
     }
 
+    global.__songoku_runtime.httpState = "error";
     log.warning(`Servidor HTTP: ${error?.message || error}`);
   });
 
   server.listen(PORT, () => {
+    global.__songoku_runtime.httpState = "listening";
     log.info(`Servidor HTTP activo en el puerto ${PORT}`);
   });
 }
@@ -122,6 +150,9 @@ function scheduleReconnect(reasonLabel = "desconocido") {
   if (shuttingDown || reconnectTimer) return;
 
   reconnectAttempts += 1;
+  global.__songoku_runtime.reconnectAttempts = reconnectAttempts;
+  global.__songoku_runtime.connectionState = "reconnecting";
+  global.__songoku_runtime.lastDisconnectReason = reasonLabel;
   const delayMs = getReconnectDelay();
 
   log.warning(
@@ -152,6 +183,7 @@ async function requestPairingCode(client, state) {
   }
 
   const code = await client.requestPairingCode(phone);
+  global.__songoku_runtime.connectionState = "pairing";
   log.success(`Codigo de emparejamiento: ${code}`);
   log.info("WhatsApp > Dispositivos vinculados > Vincular un dispositivo");
 }
@@ -203,11 +235,14 @@ async function startBot() {
       const { connection, lastDisconnect } = update;
 
       if (connection === "connecting") {
+        global.__songoku_runtime.connectionState = "connecting";
         log.info("Conectando con WhatsApp...");
       }
 
       if (connection === "open") {
         reconnectAttempts = 0;
+        global.__songoku_runtime.connectionState = "open";
+        global.__songoku_runtime.reconnectAttempts = 0;
         log.success("Conexion abierta correctamente");
       }
 
@@ -215,8 +250,10 @@ async function startBot() {
 
       const reason = new Boom(lastDisconnect?.error)?.output?.statusCode;
       const reasonLabel = lastDisconnect?.error?.message || `code:${reason || "unknown"}`;
+      global.__songoku_runtime.lastDisconnectReason = reasonLabel;
 
       if (fatalDisconnectReasons.has(reason)) {
+        global.__songoku_runtime.connectionState = "closed";
         if (reason === DisconnectReason.loggedOut) {
           log.error("Sesion cerrada. Borra la carpeta de sesion y vuelve a vincular.");
         } else {
@@ -263,6 +300,7 @@ async function startBot() {
 
 process.on("SIGINT", async () => {
   shuttingDown = true;
+  global.__songoku_runtime.connectionState = "stopping";
   if (reconnectTimer) clearTimeout(reconnectTimer);
   try {
     await clientInstance?.ws?.close?.();
@@ -273,6 +311,7 @@ process.on("SIGINT", async () => {
 
 process.on("SIGTERM", async () => {
   shuttingDown = true;
+  global.__songoku_runtime.connectionState = "stopping";
   if (reconnectTimer) clearTimeout(reconnectTimer);
   try {
     await clientInstance?.ws?.close?.();
@@ -282,6 +321,8 @@ process.on("SIGTERM", async () => {
 });
 
 startBot().catch((error) => {
+  global.__songoku_runtime.connectionState = "error";
+  global.__songoku_runtime.lastDisconnectReason = error?.message || "inicio";
   log.error(`No se pudo iniciar el bot: ${error?.message || error}`);
   scheduleReconnect(error?.message || "inicio");
 });

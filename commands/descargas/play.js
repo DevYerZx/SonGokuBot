@@ -1,4 +1,4 @@
-const yts = require("yt-search");
+const { resolveYouTubeSearch } = require("../../lib/dvyerApi");
 
 const cooldowns = new Map();
 const COOLDOWN_TIME = 15 * 1000;
@@ -36,44 +36,31 @@ module.exports = {
         );
       }
 
-      const query = args.join(" ");
-      const search = await yts(query);
-
-      if (!search.videos || !search.videos.length) {
-        cooldowns.delete(userId);
-        return client.reply(
-          m.chat,
-          "❌ No se encontraron resultados.",
-          m,
-        );
-      }
-
-      const video = search.videos[0];
-      const safeThumbnail = `https://i.ytimg.com/vi/${video.videoId}/hqdefault.jpg`;
-
+      const result = await resolveYouTubeSearch(args.join(" "));
       const caption =
         `╭━━━━━━━━《 SonGokuBot YT 》━━━━━━━━╮\n` +
-        `┃ Titulo : ${video.title}\n` +
-        `┃ Canal  : ${video.author.name}\n` +
-        `┃ Tiempo : ${video.timestamp}\n` +
-        `┃ Vistas : ${video.views.toLocaleString()}\n` +
-        `┃ URL    : ${video.url}\n` +
+        `┃ Titulo : ${result.title}\n` +
+        `┃ Canal  : ${result.channel}\n` +
+        `┃ Tiempo : ${result.durationLabel}\n` +
+        `┃ Vistas : ${result.views ? result.views.toLocaleString() : "No disponible"}\n` +
+        `┃ Subido : ${result.uploadDate}\n` +
+        `┃ URL    : ${result.videoUrl}\n` +
         `╰━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╯\n\n` +
         `👇 Elige como recibir el contenido`;
 
       const buttons = [
         {
-          buttonId: `.ytmp3 ${video.url}`,
+          buttonId: `.ytmp3 ${result.videoUrl}`,
           buttonText: { displayText: "🎵 YTMP3" },
           type: 1,
         },
         {
-          buttonId: `.ytmp4 ${video.url}`,
+          buttonId: `.ytmp4 ${result.videoUrl}`,
           buttonText: { displayText: "🎬 YTMP4" },
           type: 1,
         },
         {
-          buttonId: `.ytmp4doc ${video.url}`,
+          buttonId: `.ytmp4doc ${result.videoUrl}`,
           buttonText: { displayText: "📂 Documento" },
           type: 1,
         },
@@ -83,7 +70,7 @@ module.exports = {
         await client.sendMessage(
           m.chat,
           {
-            image: { url: safeThumbnail },
+            image: { url: result.thumbnail || global.thumbnailUrl },
             caption,
             buttons,
             footer: "🐲 SonGokuBot • Descargas YouTube • DVYER 🐲",
@@ -91,7 +78,7 @@ module.exports = {
           },
           { quoted: m },
         );
-      } catch (error) {
+      } catch {
         await client.sendMessage(
           m.chat,
           {
@@ -106,12 +93,7 @@ module.exports = {
     } catch (error) {
       console.error("PLAY ERROR:", error);
       cooldowns.delete(userId);
-
-      client.reply(
-        m.chat,
-        "❌ Error en la busqueda.",
-        m,
-      );
+      client.reply(m.chat, "❌ Error en la busqueda.", m);
     }
   },
 };
