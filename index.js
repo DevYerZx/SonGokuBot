@@ -15,12 +15,16 @@ const chalk = require("chalk");
 const fs = require("fs");
 const readline = require("readline");
 const os = require("os");
+const { randomBytes } = require("crypto");
 const { Boom } = require("@hapi/boom");
 const { smsg } = require("./lib/message");
 const { server, PORT } = require("./lib/server");
 const welcome = require("./events/welcome");
+const subbotManager = require("./lib/subbotManager");
 
 const sessionDir = global.sessionName || "SonGokuBot_session";
+const runtimeProfile = process.env.SONGOKU_RUNTIME_PROFILE || "main";
+const runtimeSubbotId = process.env.SONGOKU_SUBBOT_ID || null;
 if (!fs.existsSync(sessionDir)) {
   fs.mkdirSync(sessionDir, { recursive: true });
 }
@@ -85,6 +89,7 @@ function renderStartupBanner() {
   print("Baileys", "WhiskeySockets", "magenta");
   print("API", global.api?.baseUrl || "No configurada", "cyan");
   print("Sesion", sessionDir, "white");
+  print("Perfil", runtimeSubbotId ? `${runtimeProfile}:${runtimeSubbotId}` : runtimeProfile, "yellow");
   print("Puerto", String(PORT), "green");
   console.log(chalk.hex("#39c5bb")("────────────────────────────────────────────────────────"));
 }
@@ -112,6 +117,8 @@ global.__songoku_runtime = {
   reconnectAttempts: 0,
   sessionDir,
   port: Number(PORT),
+  profile: runtimeProfile,
+  subbotId: runtimeSubbotId,
 };
 
 function sanitizePhoneNumber(value) {
@@ -122,6 +129,18 @@ function getReconnectDelay() {
   const baseDelay = 3000;
   const attemptFactor = Math.max(reconnectAttempts, 1);
   return Math.min(baseDelay * attemptFactor, 30000);
+}
+
+function generatePairingCode(length = 8) {
+  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  const bytes = randomBytes(length);
+  let code = "";
+
+  for (let index = 0; index < length; index += 1) {
+    code += alphabet[bytes[index] % alphabet.length];
+  }
+
+  return code;
 }
 
 function startHttpServer() {
@@ -182,9 +201,11 @@ async function requestPairingCode(client, state) {
     throw new Error("Numero invalido para el pairing code.");
   }
 
-  const code = await client.requestPairingCode(phone);
+  const requestedCode = String(state.creds.pairingCode || generatePairingCode()).toUpperCase();
+  const code = await client.requestPairingCode(phone, requestedCode);
   global.__songoku_runtime.connectionState = "pairing";
-  log.success(`Codigo de emparejamiento: ${code}`);
+  global.__songoku_runtime.pairingCode = String(code || requestedCode).toUpperCase();
+  log.success(`Codigo de emparejamiento: ${global.__songoku_runtime.pairingCode}`);
   log.info("WhatsApp > Dispositivos vinculados > Vincular un dispositivo");
 }
 
@@ -225,10 +246,6 @@ async function startBot() {
     clientInstance = client;
     store.bind(client.ev);
 
-    await requestPairingCode(client, state);
-    await global.loadDatabase();
-    log.success("Base de datos cargada");
-
     client.ev.on("creds.update", saveCreds);
 
     client.ev.on("connection.update", (update) => {
@@ -252,6 +269,13 @@ async function startBot() {
       const reasonLabel = lastDisconnect?.error?.message || `code:${reason || "unknown"}`;
       global.__songoku_runtime.lastDisconnectReason = reasonLabel;
 
+      if (reason === DisconnectReason.loggedOut && !state.creds.registered) {
+        global.__songoku_runtime.connectionState = "pairing";
+        log.warning("Sesion aun no vinculada. Reintentando emparejamiento...");
+        scheduleReconnect("pairing-pending");
+        return;
+      }
+
       if (fatalDisconnectReasons.has(reason)) {
         global.__songoku_runtime.connectionState = "closed";
         if (reason === DisconnectReason.loggedOut) {
@@ -268,6 +292,16 @@ async function startBot() {
 
       scheduleReconnect(reasonLabel);
     });
+
+    await requestPairingCode(client, state);
+    await global.loadDatabase();
+    log.success("Base de datos cargada");
+    if (runtimeProfile === "main") {
+      const startedSubbots = await subbotManager.startConfiguredSubbots().catch(() => []);
+      if (startedSubbots.length) {
+        log.info(`Subbots reactivados: ${startedSubbots.length}`);
+      }
+    }
 
     client.ev.on("messages.upsert", async ({ messages, type }) => {
       if (type && type !== "notify") return;

@@ -1,17 +1,28 @@
 const fs = require("fs");
 const chalk = require("chalk");
 
-global.owner = ["51907376960"];
+const ownerList = String(process.env.SONGOKU_OWNER || "51907376960")
+  .split(",")
+  .map((value) => value.replace(/\D/g, "").trim())
+  .filter(Boolean);
+
+global.owner = ownerList.length ? ownerList : ["51907376960"];
 global.grupoOficial = "https://chat.whatsapp.com/DS3ttxXb1cVJttVlC2dTtL";
 global.antiPrivado = true;
-global.sessionName = "SonGokuBot_session";
+global.sessionName =
+  (process.env.SONGOKU_SESSION_NAME || "SonGokuBot_session").trim() ||
+  "SonGokuBot_session";
 global.version = "SonGokuBot";
-global.namebot = "SonGokuBOT";
-global.author = "DvYer | SonGokuBot";
+global.namebot = (process.env.SONGOKU_BOT_NAME || "SonGokuBOT").trim() || "SonGokuBOT";
+global.author = (process.env.SONGOKU_BOT_AUTHOR || "DvYer | SonGokuBot").trim() || "DvYer | SonGokuBot";
 global.api = {
   baseUrl: (process.env.DVYER_API_BASE || "https://dv-yer-api.online").trim(),
   key: (process.env.DVYER_API_KEY || "").trim(),
   requestTimeout: Number(process.env.DVYER_API_TIMEOUT || 120000),
+};
+global.subbot = {
+  maxLinks: Math.max(1, Number(process.env.SUBBOT_MAX_LINKS || 3) || 3),
+  basePort: Math.max(3001, Number(process.env.SUBBOT_BASE_PORT || 3300) || 3300),
 };
 
 

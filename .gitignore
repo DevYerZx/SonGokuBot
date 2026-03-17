@@ -1,6 +1,7 @@
 node_modules/
 tmp/
 SonGokuBot_session/
+subbots/
 database.json
 npm-debug.log*
 yarn-error.log*
