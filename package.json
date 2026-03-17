@@ -38,5 +38,9 @@
     "performance-now": "^2.1.0",
     "pino": "^8.8.0",
     "yargs": "^17.6.2"
+  },
+  "overrides": {
+    "music-metadata": "11.12.3",
+    "phin": "3.7.1"
   }
 }
