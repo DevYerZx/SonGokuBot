@@ -1,183 +1,135 @@
 const fs = require("fs");
 const path = require("path");
-const axios = require("axios");
-const yts = require("yt-search");
-const { exec } = require("child_process");
+const {
+  convertToMp3,
+  convertToVoiceNote,
+  deleteFileSafe,
+  downloadAbsoluteFile,
+  ensureTmpDir,
+  extractYouTubeUrl,
+  getCooldownRemaining,
+  isHttpUrl,
+  resolveFastestAudio,
+  resolveYouTubeSearch,
+  safeFileName,
+} = require("../../lib/dvyerApi");
 
-const API_URL = "https://gawrgura-api.onrender.com/download/ytdl";
-
-// ⏳ COOLDOWN
-const cooldowns = new Map();
+const AUDIO_QUALITY = "128k";
 const COOLDOWN_TIME = 15 * 1000;
+const MAX_AUDIO_BYTES = 100 * 1024 * 1024;
+const TMP_DIR = ensureTmpDir("ytdlmp3");
 
-const sleep = ms => new Promise(r => setTimeout(r, ms));
-
-async function getMp3Url(videoUrl) {
-  const res = await axios.get(
-    `${API_URL}?url=${encodeURIComponent(videoUrl)}`,
-    { timeout: 20000 }
-  );
-
-  if (!res.data?.status || !res.data?.result?.mp3) {
-    throw new Error("API inválida");
-  }
-
-  return {
-    mp3: res.data.result.mp3,
-    title: res.data.result.title
-  };
-}
+const cooldowns = new Map();
 
 module.exports = {
   command: ["ytdlmp3"],
   categoria: "descarga",
-  description: "Descarga música de YouTube como nota de voz",
+  description: "Descarga musica de YouTube como nota de voz",
 
   run: async (client, m, args) => {
     const userId = m.sender;
-    let rawMp3, finalMp3, voiceOgg;
+    let sourceFile = null;
+    let finalMp3 = null;
+    let voiceOgg = null;
 
-    // 🔒 Cooldown
-    if (cooldowns.has(userId)) {
-      const wait = cooldowns.get(userId) - Date.now();
-      if (wait > 0) {
-        return client.reply(
-          m.chat,
-          `⏳ Espera *${Math.ceil(wait / 1000)}s*`,
-          m,
-          global.channelInfo
-        );
-      }
+    const until = cooldowns.get(userId);
+    if (until && until > Date.now()) {
+      return client.reply(
+        m.chat,
+        `⏳ Espera ${getCooldownRemaining(until)}s antes de volver a usar este comando.`,
+        m,
+        global.channelInfo,
+      );
     }
+
     cooldowns.set(userId, Date.now() + COOLDOWN_TIME);
 
     try {
-      if (!args.length) {
+      const rawInput = args.join(" ").trim();
+      if (!rawInput) {
         cooldowns.delete(userId);
         return client.reply(
           m.chat,
-          "❌ Escribe el nombre de la canción",
+          "❌ Usa .ytdlmp3 <nombre o link de YouTube>",
           m,
-          global.channelInfo
+          global.channelInfo,
         );
       }
 
-      const query = args.join(" ");
-      let videoUrl;
+      let videoUrl = extractYouTubeUrl(rawInput);
       let title = "audio";
+      let thumbnail = null;
 
-      const tmpDir = path.join(__dirname, "../../tmp");
-      fs.mkdirSync(tmpDir, { recursive: true });
-
-      // 🔍 Buscar en YouTube
-      if (!/^https?:\/\//.test(query)) {
-        const search = await yts(query);
-        if (!search.videos.length) {
+      if (!videoUrl) {
+        if (isHttpUrl(rawInput)) {
           cooldowns.delete(userId);
           return client.reply(
             m.chat,
-            "❌ No se encontró el video",
+            "❌ Envia un link valido de YouTube.",
             m,
-            global.channelInfo
+            global.channelInfo,
           );
         }
 
-        videoUrl = search.videos[0].url;
-        title = search.videos[0].title
-          .replace(/[\\/:*?"<>|]/g, "")
-          .slice(0, 60);
-      } else {
-        videoUrl = query;
+        const search = await resolveYouTubeSearch(rawInput);
+        videoUrl = search.videoUrl;
+        title = search.title;
+        thumbnail = search.thumbnail;
       }
 
-      // 🔔 NOTIFICACIÓN (solo texto)
-      await client.reply(
+      await client.sendMessage(
         m.chat,
-`🖕 *Descargando*
-🎵 ${title}
-⏳ Procesando…`,
-        m,
-        global.channelInfo
+        thumbnail
+          ? {
+              image: { url: thumbnail },
+              caption: `🎙️ Preparando nota de voz...\n\nTitulo: ${title}\nCalidad: ${AUDIO_QUALITY}`,
+            }
+          : {
+              text: `🎙️ Preparando nota de voz...\n\nTitulo: ${title}\nCalidad: ${AUDIO_QUALITY}`,
+            },
+        { quoted: m, ...global.channelInfo },
       );
 
-      rawMp3 = path.join(tmpDir, `${Date.now()}_raw.mp3`);
-      finalMp3 = path.join(tmpDir, `${Date.now()}_final.mp3`);
-      voiceOgg = path.join(tmpDir, `${Date.now()}_voice.ogg`);
+      const linkResult = await resolveFastestAudio(videoUrl, AUDIO_QUALITY);
+      title = safeFileName(linkResult.title || title || "audio");
 
-      // ⬇️ Descargar MP3 (reintentos)
-      let ok = false;
-      for (let i = 0; i < 3; i++) {
-        try {
-          const { mp3 } = await getMp3Url(videoUrl);
+      const stamp = Date.now();
+      sourceFile = path.join(TMP_DIR, `${stamp}-source.bin`);
+      finalMp3 = path.join(TMP_DIR, `${stamp}-audio.mp3`);
+      voiceOgg = path.join(TMP_DIR, `${stamp}-voice.ogg`);
 
-          const res = await axios.get(mp3, {
-            responseType: "stream",
-            timeout: 60000,
-            headers: { "User-Agent": "Mozilla/5.0" }
-          });
-
-          const writer = fs.createWriteStream(rawMp3);
-          res.data.pipe(writer);
-
-          await new Promise((r, e) => {
-            writer.on("finish", r);
-            writer.on("error", e);
-          });
-
-          if (fs.statSync(rawMp3).size < 120000) {
-            throw new Error("Archivo incompleto");
-          }
-
-          ok = true;
-          break;
-        } catch {
-          await sleep(1200);
-        }
-      }
-
-      if (!ok) throw new Error("Fallo descarga");
-
-      // 🎚️ MP3 normalizado
-      await new Promise((resolve, reject) => {
-        exec(
-          `ffmpeg -y -loglevel error -i "${rawMp3}" -vn -ac 2 -ar 44100 -b:a 128k "${finalMp3}"`,
-          err => (err ? reject(err) : resolve())
-        );
+      await downloadAbsoluteFile(linkResult.resolvedDownloadUrl, {
+        outputPath: sourceFile,
+        maxBytes: MAX_AUDIO_BYTES,
+        minBytes: 100000,
       });
 
-      // 🎙️ OGG OPUS (nota de voz)
-      await new Promise((resolve, reject) => {
-        exec(
-          `ffmpeg -y -loglevel error -i "${finalMp3}" -ac 1 -ar 48000 -c:a libopus -b:a 64k "${voiceOgg}"`,
-          err => (err ? reject(err) : resolve())
-        );
-      });
+      await convertToMp3(sourceFile, finalMp3, AUDIO_QUALITY);
+      await convertToVoiceNote(finalMp3, voiceOgg);
 
-      // 📤 ENVIAR AUDIO (SIN TEXTO)
       await client.sendMessage(
         m.chat,
         {
-          audio: fs.readFileSync(voiceOgg),
+          audio: { url: voiceOgg },
           mimetype: "audio/ogg; codecs=opus",
-          ptt: true
+          ptt: true,
         },
-        { quoted: m, ...global.channelInfo }
+        { quoted: m, ...global.channelInfo },
       );
-
-    } catch (err) {
-      console.error("YTDL ERROR:", err.message);
+    } catch (error) {
+      console.error("YTDLMP3 ERROR:", error?.message || error);
       cooldowns.delete(userId);
 
       await client.reply(
         m.chat,
-        "❌ Error al procesar la nota de voz",
+        String(error?.message || "❌ Error al procesar la nota de voz."),
         m,
-        global.channelInfo
+        global.channelInfo,
       );
     } finally {
-      if (rawMp3 && fs.existsSync(rawMp3)) fs.unlinkSync(rawMp3);
-      if (finalMp3 && fs.existsSync(finalMp3)) fs.unlinkSync(finalMp3);
-      if (voiceOgg && fs.existsSync(voiceOgg)) fs.unlinkSync(voiceOgg);
+      deleteFileSafe(sourceFile);
+      deleteFileSafe(finalMp3);
+      deleteFileSafe(voiceOgg);
     }
-  }
+  },
 };

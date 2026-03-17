@@ -1,4 +1,6 @@
-const { fetchDownloadLinks, getDownloadLink } = require("lurcloud");
+const { apiGet, normalizeApiUrl, pickApiDownloadUrl } = require("../../lib/dvyerApi");
+
+const API_BASE = global.api?.baseUrl || "https://dv-yer-api.online";
 
 module.exports = {
   command: ["fb", "facebook"],
@@ -8,21 +10,23 @@ module.exports = {
 
   run: async (client, m, args) => {
     try {
-      if (!args[0]) {
+      const inputUrl = String(args[0] || "").trim();
+
+      if (!inputUrl) {
         return client.reply(
           m.chat,
           "❌ Ingresa un enlace de Facebook\n\n📌 Ejemplo:\n!fb https://www.facebook.com/share/r/15kXJEJXPA/",
           m,
-          global.channelInfo
+          global.channelInfo,
         );
       }
 
-      if (!/facebook\.com|fb\.watch|video\.fb\.com/i.test(args[0])) {
+      if (!/facebook\.com|fb\.watch|video\.fb\.com/i.test(inputUrl)) {
         return client.reply(
           m.chat,
-          "❌ El enlace no es válido.\nAsegúrate que sea de Facebook",
+          "❌ El enlace no es valido. Asegurate de que sea de Facebook.",
           m,
-          global.channelInfo
+          global.channelInfo,
         );
       }
 
@@ -30,39 +34,28 @@ module.exports = {
         m.chat,
         "⏳ Procesando video de Facebook...\n📥 Descargando, espera un momento\n🤖 SonGokuBot",
         m,
-        global.channelInfo
+        global.channelInfo,
       );
 
-      const links = await fetchDownloadLinks(args[0], "facebook");
+      const data = await apiGet(`${API_BASE}/facebook`, {
+        url: inputUrl,
+        mode: "link",
+        quality: "auto",
+      });
 
-      if (!links || !Array.isArray(links) || links.length === 0) {
-        return client.reply(
-          m.chat,
-          "❌ No se pudo obtener el video",
-          m,
-          global.channelInfo
-        );
-      }
-
-      const videoUrl = getDownloadLink("facebook", links);
+      const videoUrl = normalizeApiUrl(pickApiDownloadUrl(data));
 
       if (!videoUrl) {
         return client.reply(
           m.chat,
-          "❌ No se encontró un enlace de descarga válido",
+          "❌ No se encontro un enlace de descarga valido.",
           m,
-          global.channelInfo
+          global.channelInfo,
         );
       }
 
-      const caption = `
-📘 FB DOWNLOADER
-
-🔗 Enlace:
-${args[0]}
-
-🤖 SonGokuBot
-`.trim();
+      const title = String(data?.title || data?.filename || "facebook").trim();
+      const caption = `📘 FB DOWNLOADER\n\n🎬 ${title}\n🔗 ${inputUrl}\n🤖 SonGokuBot`;
 
       await client.sendMessage(
         m.chat,
@@ -72,16 +65,15 @@ ${args[0]}
           mimetype: "video/mp4",
           fileName: "facebook.mp4",
         },
-        { quoted: m, ...global.channelInfo }
+        { quoted: m, ...global.channelInfo },
       );
-
-    } catch (err) {
-      console.error("FB ERROR:", err);
+    } catch (error) {
+      console.error("FB ERROR:", error);
       await client.reply(
         m.chat,
-        "❌ Error al procesar el video de Facebook",
+        String(error?.message || "❌ Error al procesar el video de Facebook."),
         m,
-        global.channelInfo
+        global.channelInfo,
       );
     }
   },

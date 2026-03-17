@@ -1,125 +1,148 @@
-const axios = require("axios");
-const yts = require("yt-search");
 const fs = require("fs");
 const path = require("path");
+const {
+  deleteFileSafe,
+  downloadAbsoluteFile,
+  ensureTmpDir,
+  extractYouTubeUrl,
+  getCooldownRemaining,
+  isHttpUrl,
+  normalizeMp4Name,
+  normalizeVideoForWhatsApp,
+  resolveFastestVideo,
+  resolveYouTubeSearch,
+  safeFileName,
+  sendVideoOrDocument,
+  stripExtension,
+} = require("../../lib/dvyerApi");
 
-const BOT_NAME = "SonGokuBot";
-const API_URL = "https://gawrgura-api.onrender.com/download/ytdl";
+const BOT_NAME = global.namebot || "SonGokuBot";
+const VIDEO_QUALITY = "360p";
+const COOLDOWN_TIME = 15 * 1000;
+const MAX_VIDEO_BYTES = 200 * 1024 * 1024;
+const VIDEO_AS_DOCUMENT_THRESHOLD = 70 * 1024 * 1024;
+const TMP_DIR = ensureTmpDir("ytmp4");
 
-// ⏳ COOLDOWN
 const cooldowns = new Map();
-const COOLDOWN_TIME = 15 * 1000; // 15 segundos
 
 module.exports = {
-  command: ["ytvideo"],
+  command: ["ytmp4", "ytvideo"],
   categoria: "descarga",
-  description: "Descarga y envía solo el video de YouTube",
+  description: "Descarga video de YouTube con la API nueva",
 
   run: async (client, m, args) => {
-    let filePath;
-    const userId = m.sender;
+    const userId = `${m.sender}:video`;
+    let rawVideoFile = null;
+    let finalVideoFile = null;
 
-    // 🔒 Verificar cooldown
-    if (cooldowns.has(userId)) {
-      const expire = cooldowns.get(userId);
-      const remaining = expire - Date.now();
-
-      if (remaining > 0) {
-        return client.reply(
-          m.chat,
-          `⏳ Espera *${Math.ceil(remaining / 1000)} segundos* antes de volver a usar este comando.`,
-          m,
-          global.channelInfo
-        );
-      }
+    const until = cooldowns.get(userId);
+    if (until && until > Date.now()) {
+      return client.reply(
+        m.chat,
+        `⏳ Espera ${getCooldownRemaining(until)}s antes de volver a usar este comando.`,
+        m,
+        global.channelInfo,
+      );
     }
 
-    // ✅ Activar cooldown
     cooldowns.set(userId, Date.now() + COOLDOWN_TIME);
 
     try {
-      if (!args.length) {
+      const rawInput = args.join(" ").trim();
+      if (!rawInput) {
         cooldowns.delete(userId);
         return client.reply(
           m.chat,
-          "❌ Ingresa un enlace o nombre del video de YouTube.",
+          "❌ Usa .ytmp4 <nombre o link de YouTube>",
           m,
-          global.channelInfo
+          global.channelInfo,
         );
       }
 
-      let videoUrl = args.join(" ");
+      let videoUrl = extractYouTubeUrl(rawInput);
       let title = "video";
+      let thumbnail = null;
 
-      if (!videoUrl.startsWith("http")) {
-        const search = await yts(videoUrl);
-        if (!search.videos?.length) {
+      if (!videoUrl) {
+        if (isHttpUrl(rawInput)) {
           cooldowns.delete(userId);
           return client.reply(
             m.chat,
-            "❌ No se encontraron resultados.",
+            "❌ Envia un link valido de YouTube.",
             m,
-            global.channelInfo
+            global.channelInfo,
           );
         }
-        videoUrl = search.videos[0].url;
-        title = search.videos[0].title || title;
+
+        const search = await resolveYouTubeSearch(rawInput);
+        videoUrl = search.videoUrl;
+        title = search.title || title;
+        thumbnail = search.thumbnail;
       }
-
-      await client.reply(
-        m.chat,
-        `⏳ Buscando tu video...\n🤖 ${BOT_NAME}`,
-        m,
-        global.channelInfo
-      );
-
-      const res = await axios.get(API_URL, {
-        params: { url: videoUrl },
-        timeout: 120000
-      });
-
-      const data = res.data?.result;
-      if (!data?.mp4) throw new Error("Respuesta inválida");
-
-      const safeTitle = (data.title || title)
-        .replace(/[\\/:*?"<>|]/g, "")
-        .trim()
-        .slice(0, 60);
-
-      const tmpPath = path.join(__dirname, "../../tmp");
-      fs.mkdirSync(tmpPath, { recursive: true });
-
-      const videoRes = await axios.get(data.mp4, {
-        responseType: "arraybuffer",
-        timeout: 300000
-      });
-
-      filePath = path.join(tmpPath, `${Date.now()}_${userId}.mp4`);
-      fs.writeFileSync(filePath, videoRes.data);
 
       await client.sendMessage(
         m.chat,
-        {
-          video: fs.readFileSync(filePath),
-          mimetype: "video/mp4",
-          fileName: `${safeTitle}.mp4`,
-          caption: `🎬 ${safeTitle}\n🤖 ${BOT_NAME}`
-        },
-        { quoted: m, ...global.channelInfo }
+        thumbnail
+          ? {
+              image: { url: thumbnail },
+              caption: `🎬 Preparando video...\n\nTitulo: ${title}\nCalidad: ${VIDEO_QUALITY}\nAPI: ${BOT_NAME}`,
+            }
+          : {
+              text: `🎬 Preparando video...\n\nTitulo: ${title}\nCalidad: ${VIDEO_QUALITY}\nAPI: ${BOT_NAME}`,
+            },
+        { quoted: m, ...global.channelInfo },
       );
 
-    } catch (err) {
+      const linkResult = await resolveFastestVideo(videoUrl, VIDEO_QUALITY);
+      title = safeFileName(linkResult.title || title || "video");
+
+      const stamp = Date.now();
+      rawVideoFile = path.join(TMP_DIR, `${stamp}-raw.mp4`);
+      finalVideoFile = path.join(TMP_DIR, `${stamp}-final.mp4`);
+
+      const downloaded = await downloadAbsoluteFile(linkResult.resolvedDownloadUrl, {
+        outputPath: rawVideoFile,
+        maxBytes: MAX_VIDEO_BYTES,
+        minBytes: 150000,
+      });
+
+      const normalized = await normalizeVideoForWhatsApp(
+        downloaded.tempPath,
+        finalVideoFile,
+      );
+      const sendPath =
+        normalized && fs.existsSync(finalVideoFile) ? finalVideoFile : rawVideoFile;
+      const sendSize = fs.existsSync(sendPath) ? fs.statSync(sendPath).size : downloaded.size;
+      const finalTitle = safeFileName(
+        stripExtension(linkResult.fileName || `${title}.mp4`) || title,
+      );
+
+      await sendVideoOrDocument(
+        client,
+        m.chat,
+        { quoted: m, ...global.channelInfo },
+        {
+          filePath: sendPath,
+          fileName: normalizeMp4Name(linkResult.fileName || `${finalTitle}.mp4`),
+          title: finalTitle,
+          size: sendSize,
+          documentThreshold: VIDEO_AS_DOCUMENT_THRESHOLD,
+          caption: `🎬 ${finalTitle}\nCalidad: ${VIDEO_QUALITY}${linkResult.duration ? `\nDuracion: ${linkResult.duration}` : ""}\n🤖 ${BOT_NAME}`,
+        },
+      );
+    } catch (error) {
+      console.error("YTMP4 ERROR:", error?.message || error);
       cooldowns.delete(userId);
+
       await client.reply(
         m.chat,
-        "❌ Error al descargar o enviar el video.",
+        String(error?.message || "❌ Error al descargar o enviar el video."),
         m,
-        global.channelInfo
+        global.channelInfo,
       );
     } finally {
-      if (filePath && fs.existsSync(filePath)) {
-        fs.unlinkSync(filePath);
-      }
+      deleteFileSafe(rawVideoFile);
+      deleteFileSafe(finalVideoFile);
     }
-  }
+  },
 };

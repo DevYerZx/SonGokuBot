@@ -1,181 +1,140 @@
 const fs = require("fs");
 const path = require("path");
-const axios = require("axios");
-const yts = require("yt-search");
-const { exec } = require("child_process");
+const {
+  convertToMp3,
+  deleteFileSafe,
+  downloadAbsoluteFile,
+  ensureTmpDir,
+  extractYouTubeUrl,
+  getCooldownRemaining,
+  isHttpUrl,
+  normalizeMp3Name,
+  resolveFastestAudio,
+  resolveYouTubeSearch,
+  safeFileName,
+  sendAudioFile,
+} = require("../../lib/dvyerApi");
 
-const BOT_NAME = "SonGokuBot";
-const API_URL = "https://gawrgura-api.onrender.com/download/ytmp3";
+const BOT_NAME = global.namebot || "SonGokuBot";
+const AUDIO_QUALITY = "128k";
+const COOLDOWN_TIME = 15 * 1000;
+const MAX_AUDIO_BYTES = 100 * 1024 * 1024;
+const AUDIO_AS_DOCUMENT_THRESHOLD = 60 * 1024 * 1024;
+const TMP_DIR = ensureTmpDir("ytmp3");
 
-// ⏳ COOLDOWN
 const cooldowns = new Map();
-const COOLDOWN_TIME = 15 * 1000; // 15 segundos
-
-const sleep = ms => new Promise(r => setTimeout(r, ms));
-
-async function getMp3Url(videoUrl) {
-  const res = await axios.get(
-    `${API_URL}?url=${encodeURIComponent(videoUrl)}`,
-    { timeout: 20000 }
-  );
-  if (!res.data?.result) throw new Error("API inválida");
-  return res.data.result;
-}
 
 module.exports = {
-  command: ["ytaudio"],
+  command: ["ytmp3", "ytaudio"],
   categoria: "descarga",
-  description: "Descarga audio MP3 de YouTube en buena calidad",
+  description: "Descarga audio MP3 de YouTube con la API nueva",
 
   run: async (client, m, args) => {
-    const userId = m.sender;
-    let rawMp3, finalMp3;
+    const userId = `${m.sender}:audio`;
+    let sourceFile = null;
+    let finalMp3 = null;
 
-    /* 🔒 COOLDOWN MEJORADO */
-    if (cooldowns.has(userId)) {
-      const wait = cooldowns.get(userId) - Date.now();
-      if (wait > 0) {
-        return client.sendMessage(
-          m.chat,
-          {
-            text: `⏳ *Espera un momento*\n\n⌛ Tiempo restante: *${Math.ceil(wait / 1000)}s*`,
-            contextInfo: {
-              externalAdReply: {
-                title: "Sistema anti-spam",
-                body: BOT_NAME,
-                thumbnailUrl: "https://i.imgur.com/2yaf2wb.png",
-                mediaType: 1,
-                renderLargerThumbnail: true
-              }
-            }
-          },
-          { quoted: m }
-        );
-      }
+    const until = cooldowns.get(userId);
+    if (until && until > Date.now()) {
+      return client.reply(
+        m.chat,
+        `⏳ Espera ${getCooldownRemaining(until)}s antes de volver a usar este comando.`,
+        m,
+        global.channelInfo,
+      );
     }
+
     cooldowns.set(userId, Date.now() + COOLDOWN_TIME);
 
     try {
-      if (!args.length) {
+      const rawInput = args.join(" ").trim();
+      if (!rawInput) {
         cooldowns.delete(userId);
         return client.reply(
           m.chat,
-          "❌ Escribe un *nombre* o *link* de YouTube",
+          "❌ Usa .ytmp3 <nombre o link de YouTube>",
           m,
-          global.channelInfo
+          global.channelInfo,
         );
       }
 
-      const query = args.join(" ");
-      let videoUrl = query;
+      let videoUrl = extractYouTubeUrl(rawInput);
       let title = "audio";
+      let thumbnail = null;
 
-      const tmpDir = path.join(__dirname, "../../tmp");
-      fs.mkdirSync(tmpDir, { recursive: true });
-
-      /* 🔍 BUSCAR SI NO ES LINK */
-      if (!/^https?:\/\//.test(query)) {
-        const search = await yts(query);
-        if (!search.videos.length) {
+      if (!videoUrl) {
+        if (isHttpUrl(rawInput)) {
           cooldowns.delete(userId);
           return client.reply(
             m.chat,
-            "❌ No se puede descargar",
+            "❌ Envia un link valido de YouTube.",
             m,
-            global.channelInfo
+            global.channelInfo,
           );
         }
-        videoUrl = search.videos[0].url;
-        title = search.videos[0].title
-          .replace(/[\\/:*?"<>|]/g, "")
-          .slice(0, 60);
+
+        const search = await resolveYouTubeSearch(rawInput);
+        videoUrl = search.videoUrl;
+        title = search.title;
+        thumbnail = search.thumbnail;
       }
 
-      /* 🎧 MENSAJE UX */
-      await client.reply(
-        m.chat,
-`╭─🎧 *YT MP3*
-│ 🎵 ${title}
-│ ⏳ Procesando audio…
-╰────────────`,
-        m,
-        global.channelInfo
-      );
-
-      rawMp3 = path.join(tmpDir, `${Date.now()}_raw.mp3`);
-      finalMp3 = path.join(tmpDir, `${Date.now()}_final.mp3`);
-
-      /* 🔁 RETRY INTELIGENTE */
-      let ok = false, lastErr;
-      for (let i = 0; i < 3; i++) {
-        try {
-          const mp3Url = await getMp3Url(videoUrl);
-          const res = await axios.get(mp3Url, {
-            responseType: "stream",
-            timeout: 60000,
-            headers: { "User-Agent": "Mozilla/5.0" }
-          });
-
-          const writer = fs.createWriteStream(rawMp3);
-          res.data.pipe(writer);
-
-          await new Promise((r, e) => {
-            writer.on("finish", r);
-            writer.on("error", e);
-          });
-
-          if (fs.statSync(rawMp3).size < 120000) {
-            throw new Error("Archivo incompleto");
-          }
-
-          ok = true;
-          break;
-        } catch (e) {
-          lastErr = e;
-          await sleep(1200);
-        }
-      }
-
-      if (!ok) throw lastErr;
-
-      /* 🎚️ MP3 REAL 128kbps */
-      await new Promise((resolve, reject) => {
-        exec(
-          `ffmpeg -y -loglevel error -i "${rawMp3}" -vn -ac 2 -ar 44100 -b:a 128k "${finalMp3}"`,
-          err => (err ? reject(err) : resolve())
-        );
-      });
-
-      /* 📤 ENVIAR MP3 */
       await client.sendMessage(
         m.chat,
-        {
-          audio: fs.readFileSync(finalMp3),
-          mimetype: "audio/mpeg",
-          fileName: `${title}.mp3`,
-          caption:
-`╭─🎶 *AUDIO MP3*
-│ 🎵 ${title}
-│ 🎚️ 128kbps
-│ 🤖 ${BOT_NAME}
-╰────────────`
-        },
-        { quoted: m, ...global.channelInfo }
+        thumbnail
+          ? {
+              image: { url: thumbnail },
+              caption: `🎧 Preparando audio...\n\nTitulo: ${title}\nCalidad: ${AUDIO_QUALITY}\nAPI: ${BOT_NAME}`,
+            }
+          : {
+              text: `🎧 Preparando audio...\n\nTitulo: ${title}\nCalidad: ${AUDIO_QUALITY}\nAPI: ${BOT_NAME}`,
+            },
+        { quoted: m, ...global.channelInfo },
       );
 
-    } catch (err) {
-      console.error("YTA ERROR:", err.message);
+      const linkResult = await resolveFastestAudio(videoUrl, AUDIO_QUALITY);
+      title = safeFileName(linkResult.title || title || "audio");
+
+      const stamp = Date.now();
+      sourceFile = path.join(TMP_DIR, `${stamp}-source.bin`);
+      finalMp3 = path.join(TMP_DIR, `${stamp}-audio.mp3`);
+
+      await downloadAbsoluteFile(linkResult.resolvedDownloadUrl, {
+        outputPath: sourceFile,
+        maxBytes: MAX_AUDIO_BYTES,
+        minBytes: 100000,
+      });
+
+      await convertToMp3(sourceFile, finalMp3, AUDIO_QUALITY);
+
+      const finalSize = fs.existsSync(finalMp3) ? fs.statSync(finalMp3).size : 0;
+
+      await sendAudioFile(
+        client,
+        m.chat,
+        { quoted: m, ...global.channelInfo },
+        {
+          filePath: finalMp3,
+          title,
+          fileName: normalizeMp3Name(linkResult.fileName || title),
+          size: finalSize,
+          documentThreshold: AUDIO_AS_DOCUMENT_THRESHOLD,
+          caption: `🎶 ${title}${linkResult.duration ? `\nDuracion: ${linkResult.duration}` : ""}\n🤖 ${BOT_NAME}`,
+        },
+      );
+    } catch (error) {
+      console.error("YTMP3 ERROR:", error?.message || error);
       cooldowns.delete(userId);
+
       await client.reply(
         m.chat,
-        "❌ Error al descargar el audio",
+        String(error?.message || "❌ No se pudo procesar el audio."),
         m,
-        global.channelInfo
+        global.channelInfo,
       );
     } finally {
-      if (rawMp3 && fs.existsSync(rawMp3)) fs.unlinkSync(rawMp3);
-      if (finalMp3 && fs.existsSync(finalMp3)) fs.unlinkSync(finalMp3);
+      deleteFileSafe(sourceFile);
+      deleteFileSafe(finalMp3);
     }
-  }
+  },
 };
-

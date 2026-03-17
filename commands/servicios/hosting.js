@@ -3,7 +3,7 @@ module.exports = {
   categoria: "menu",
   description: "Muestra los hostings donde puedes desplegar bots de WhatsApp y más",
 
-  run: async (client, m, { prefix }) => {
+  run: async (client, m, args, context = {}) => {
     try {
       const BOT_NAME = "SonGokuBot";
 

@@ -2,12 +2,17 @@ const fs = require("fs");
 const chalk = require("chalk");
 
 global.owner = ["51907376960"];
-global.grupoOficial = "https://chat.whatsapp.com/DS3ttxXb1cVJttVlC2dTtL"
-global.antiPrivado = true
+global.grupoOficial = "https://chat.whatsapp.com/DS3ttxXb1cVJttVlC2dTtL";
+global.antiPrivado = true;
 global.sessionName = "SonGokuBot_session";
 global.version = "SonGokuBot";
 global.namebot = "SonGokuBOT";
 global.author = "DvYer | SonGokuBot";
+global.api = {
+  baseUrl: (process.env.DVYER_API_BASE || "https://dv-yer-api.online").trim(),
+  key: (process.env.DVYER_API_KEY || "").trim(),
+  requestTimeout: Number(process.env.DVYER_API_TIMEOUT || 120000),
+};
 
 
 global.mess = {

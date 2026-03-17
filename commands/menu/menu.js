@@ -6,9 +6,10 @@ module.exports = {
   categoria: "menu",
   description: "Muestra el menú completo de SonGokuBot",
 
-  run: async (client, m, { prefix }) => {
+  run: async (client, m, args, context = {}) => {
     try {
-      const usedPrefix = prefix && prefix.length ? prefix : ".";
+      const usedPrefix =
+        context.prefix && context.prefix.length ? context.prefix : ".";
       const name = m.pushName || "Usuario";
 
       const uptimeMs = process.uptime() * 1000;
