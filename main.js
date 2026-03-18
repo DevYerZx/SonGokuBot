@@ -10,8 +10,49 @@ const seeCommands = require("./lib/system/commandLoader");
 const initDB = require("./lib/system/initDB");
 const antilink = require("./commands/antilink");
 const { resolveLidToRealJid } = require("./lib/utils");
+const {
+  decorateReplyPayload,
+  decorateSendMessagePayload,
+} = require("./lib/commandArt");
 
 seeCommands();
+
+function createCommandClient(client, meta) {
+  const commandClient = Object.create(client);
+  const safeMeta = {
+    command: meta?.command || "comando",
+    category: meta?.category || "general",
+  };
+
+  commandClient.reply = async (jid, text = "", quoted, options = {}) => {
+    if (Buffer.isBuffer(text)) {
+      return client.sendFile(jid, text, "file", "", quoted, false, options);
+    }
+
+    const payload = await decorateReplyPayload({
+      text,
+      options,
+      meta: safeMeta,
+    });
+
+    return client.sendMessage(jid, payload.content, {
+      quoted,
+      ...payload.options,
+    });
+  };
+
+  commandClient.sendMessage = async (jid, content = {}, options = {}) => {
+    const payload = await decorateSendMessagePayload({
+      content,
+      options,
+      meta: safeMeta,
+    });
+
+    return client.sendMessage(jid, payload.content, payload.options);
+  };
+
+  return commandClient;
+}
 
 module.exports = async (client, m) => {
   let body = "";
@@ -135,7 +176,12 @@ module.exports = async (client, m) => {
   if (cmdData.isPrivate && m.isGroup) return m.reply(mess.private);
 
   try {
-    await cmdData.run(client, m, args, {
+    const commandClient = createCommandClient(client, {
+      command,
+      category: cmdData.categoria,
+    });
+
+    await cmdData.run(commandClient, m, args, {
       text,
       body,
       prefix,
