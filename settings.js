@@ -20,6 +20,12 @@ global.api = {
   key: (process.env.DVYER_API_KEY || "").trim(),
   requestTimeout: Number(process.env.DVYER_API_TIMEOUT || 120000),
 };
+global.dragonBallApi = {
+  baseUrl: (process.env.DRAGONBALL_API_BASE || "https://dragonball-api.com/api")
+    .trim()
+    .replace(/\/+$/, ""),
+  requestTimeout: Number(process.env.DRAGONBALL_API_TIMEOUT || 60000),
+};
 global.subbot = {
   maxLinks: Math.max(1, Number(process.env.SUBBOT_MAX_LINKS || 3) || 3),
   basePort: Math.max(3001, Number(process.env.SUBBOT_BASE_PORT || 3300) || 3300),
