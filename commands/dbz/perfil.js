@@ -3,6 +3,7 @@ const {
   getProfileSummary,
   formatTimeMs,
 } = require("../../lib/dbzSystem");
+const { imageUrlToJpegBuffer } = require("../../lib/dragonBallApi");
 
 module.exports = {
   command: ["perfil", "perfildbz", "power", "ki"],
@@ -23,6 +24,7 @@ module.exports = {
 
       const text =
         `PERFIL DBZ\n\n` +
+        `Personaje fijo: ${profile.character ? `${profile.character.name} (#${profile.character.id})` : "sin elegir"}\n` +
         `Nombre: ${profile.name}\n` +
         `Raza: ${profile.race}\n` +
         `Nivel: ${profile.level} (${profile.exp}/${profile.maxExp} exp)\n` +
@@ -38,6 +40,21 @@ module.exports = {
         `Victorias: ${profile.stats.wins} | Derrotas: ${profile.stats.losses}\n` +
         `Danio boss: ${profile.stats.bossDamage} | Trivias: ${profile.stats.triviaCorrect}\n` +
         `Mision: ${mission ? `${mission.title} (${mission.progress}/${mission.target})` : "usa .mision"}`;
+
+      if (profile.character?.image) {
+        const imageBuffer = await imageUrlToJpegBuffer(profile.character.image);
+        return client.sendMessage(
+          m.chat,
+          {
+            image: imageBuffer,
+            caption: text,
+          },
+          {
+            quoted: m,
+            ...global.channelInfo,
+          },
+        );
+      }
 
       await client.reply(m.chat, text, m, global.channelInfo);
     } catch (error) {

@@ -36,7 +36,7 @@ module.exports = {
       if (!isRandom && !query) {
         return client.reply(
           m.chat,
-          "Uso: .personajedbz <nombre o id>\nEjemplos: .personajedbz goku | .goku | .dbzrandom",
+          "Uso: .personajedbz <nombre o id>\nEjemplos: .personajedbz goku | .goku | .dbzrandom\n\nPara fijarlo en tu perfil usa: .elegirdbz <nombre o id>",
           m,
           global.channelInfo,
         );
@@ -56,7 +56,9 @@ module.exports = {
         ? await getRandomCharacter()
         : await findCharacter(query);
       const imageBuffer = await imageUrlToJpegBuffer(character.image);
-      const caption = formatCharacterCaption(character, { isRandom });
+      const caption =
+        `${formatCharacterCaption(character, { isRandom })}\n\n` +
+        `${isRandom ? "Si te gusta uno, usa .elegirdbz <nombre o id>." : `Para fijarlo en tu perfil usa .elegirdbz ${character.id}`}`;
 
       await client.sendMessage(
         m.chat,
